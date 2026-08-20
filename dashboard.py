@@ -217,7 +217,7 @@ def create_donut_chart(data, name_col, value_col, colors=None):
     
     return final_chart
 
-# ============ BAR CHART FUNCTION (FIXED CHRONOLOGICAL SORT) ============
+# ============ BAR CHART FUNCTION (FORCED CHRONOLOGICAL ORDER) ============
 def create_bar_chart(data, x_col, y_col, color=None):
     df = data.reset_index()
     df.columns = [x_col, y_col]
@@ -229,8 +229,8 @@ def create_bar_chart(data, x_col, y_col, color=None):
     ).encode(
         x=alt.X(x_col + ':O', 
                 axis=alt.Axis(labels=True, title=None, labelAngle=-45),
-                # THIS LINE FORCES IT TO BE IN CHRONOLOGICAL ORDER
-                sort=alt.SortField(field=x_col, order='ascending') 
+                # FORCE to follow the exact order of the dataframe (Jan -> Jul)
+                sort=None 
                 ),
         y=alt.Y(y_col + ':Q', 
                 axis=alt.Axis(labels=False, title=None, grid=False)),
@@ -245,7 +245,8 @@ def create_bar_chart(data, x_col, y_col, color=None):
         fontWeight='bold',
         color=DARK_BLUE
     ).encode(
-        x=alt.X(x_col + ':O', sort=alt.SortField(field=x_col, order='ascending')),
+        # FORCE text to follow the exact same order
+        x=alt.X(x_col + ':O', sort=None),
         y=alt.Y(y_col + ':Q'),
         text=alt.Text(y_col + ':Q', format=',.0f')
     )
