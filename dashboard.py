@@ -739,13 +739,3 @@ if not filtered_df.empty:
         file_name='filtered_union_data_kol.csv',
         mime='text/csv'
     )
-
-# ============ COLUMN INFO ============
-with st.expander("Column Information"):
-    col_info = pd.DataFrame({
-        'Column': df.columns,
-        'Type': df.dtypes.astype(str),
-        'Unique Values': [df[col].nunique() for col in df.columns],
-        'Missing Values': [df[col].isnull().sum() for col in df.columns]
-    })
-    st.dataframe(col_info)
