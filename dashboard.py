@@ -94,13 +94,13 @@ if 'KOL_Name' in df.columns:
     df['KOL_Name_Original'] = df['KOL_Name']
     df['KOL_Name'] = df['KOL_Name'].apply(clean_kol_name)
 
-# ============ SIDEBAR FILTERS (WITH SORTED MONTHS CHRONOLOGICALLY) ============
+# ============ SIDEBAR FILTERS (WITH MULTISELECT) ============
 with st.sidebar:
     st.subheader("Filters")
     
     filtered_df = df.copy()
     
-    # Filter by Month - CHRONOLOGICAL ORDER (Jan -> Jul)
+    # Filter by Month - MULTISELECT with "Select All" option
     if 'Month' in df.columns and pd.api.types.is_datetime64_any_dtype(df['Month']):
         # Get unique months and sort them chronologically by the datetime values
         unique_months = df['Month'].unique()
@@ -108,24 +108,57 @@ with st.sidebar:
         sorted_months_dt = sorted(unique_months)
         # Convert to string format for display
         sorted_months = [dt.strftime('%b-%y') for dt in sorted_months_dt]
-        month_options = ['All'] + sorted_months
-        selected_month = st.selectbox("Select Month", month_options)
-        if selected_month != 'All':
-            filtered_df = filtered_df[filtered_df['Month'].dt.strftime('%b-%y') == selected_month]
+        
+        # Add "Select All" option
+        month_options = ['Select All'] + sorted_months
+        selected_months = st.multiselect(
+            "Select Months",
+            options=month_options,
+            default=['Select All']
+        )
+        
+        # Handle "Select All" selection
+        if 'Select All' in selected_months:
+            selected_months = sorted_months
+        
+        if selected_months:
+            filtered_df = filtered_df[filtered_df['Month'].dt.strftime('%b-%y').isin(selected_months)]
     
-    # Filter by Tier
+    # Filter by Tier - MULTISELECT with "Select All" option
     if 'Tier' in df.columns:
-        tier_options = ['All'] + sorted(df['Tier'].dropna().unique().tolist())
-        selected_tier = st.selectbox("Select Tier", tier_options)
-        if selected_tier != 'All':
-            filtered_df = filtered_df[filtered_df['Tier'] == selected_tier]
+        tier_options = ['Select All'] + sorted(df['Tier'].dropna().unique().tolist())
+        selected_tiers = st.multiselect(
+            "Select Tiers",
+            options=tier_options,
+            default=['Select All']
+        )
+        
+        # Handle "Select All" selection
+        if 'Select All' in selected_tiers:
+            selected_tiers = sorted(df['Tier'].dropna().unique().tolist())
+        
+        if selected_tiers:
+            filtered_df = filtered_df[filtered_df['Tier'].isin(selected_tiers)]
     
-    # Filter by Platform
+    # Filter by Platform - MULTISELECT with "Select All" option
     if 'Platform' in df.columns:
-        platform_options = ['All'] + sorted(df['Platform'].dropna().unique().tolist())
-        selected_platform = st.selectbox("Select Platform", platform_options)
-        if selected_platform != 'All':
-            filtered_df = filtered_df[filtered_df['Platform'] == selected_platform]
+        platform_options = ['Select All'] + sorted(df['Platform'].dropna().unique().tolist())
+        selected_platforms = st.multiselect(
+            "Select Platforms",
+            options=platform_options,
+            default=['Select All']
+        )
+        
+        # Handle "Select All" selection
+        if 'Select All' in selected_platforms:
+            selected_platforms = sorted(df['Platform'].dropna().unique().tolist())
+        
+        if selected_platforms:
+            filtered_df = filtered_df[filtered_df['Platform'].isin(selected_platforms)]
+    
+    # Add a "Clear All Filters" button
+    if st.button("🔄 Clear All Filters", use_container_width=True):
+        st.rerun()
 
 # ============ FORMATTING FUNCTIONS ============
 def format_number(num):
