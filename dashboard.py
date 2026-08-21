@@ -72,16 +72,42 @@ if 'Month' in df.columns:
     df = df[df['Month'].isin(valid_months)]
     df['Month'] = pd.to_datetime(df['Month'], format='%b-%y')
 
-# ============ SIDEBAR FILTERS (WITH SORTED MONTHS) ============
+# ============ HELPER FUNCTION TO CLEAN KOL NAME ============
+def clean_kol_name(name):
+    """Remove numbers/prefixes before KOL name and clean up"""
+    if pd.isna(name):
+        return name
+    name = str(name).strip()
+    # Remove patterns like "593 " or "123 " at the start
+    name = re.sub(r'^\d+\s+', '', name)
+    # Remove any remaining leading numbers
+    name = re.sub(r'^\d+', '', name)
+    name = name.strip()
+    # Remove zero-width spaces and other special chars
+    name = name.replace('\u200b', '').replace('\u00a0', ' ')
+    # Clean up multiple spaces
+    name = re.sub(r'\s+', ' ', name)
+    return name
+
+# ============ APPLY CLEAN KOL NAME TO DATAFRAME ============
+if 'KOL_Name' in df.columns:
+    df['KOL_Name_Original'] = df['KOL_Name']
+    df['KOL_Name'] = df['KOL_Name'].apply(clean_kol_name)
+
+# ============ SIDEBAR FILTERS (WITH SORTED MONTHS CHRONOLOGICALLY) ============
 with st.sidebar:
     st.subheader("Filters")
     
     filtered_df = df.copy()
     
-    # Filter by Month - FIXED SORTING
+    # Filter by Month - CHRONOLOGICAL ORDER (Jan -> Jul)
     if 'Month' in df.columns and pd.api.types.is_datetime64_any_dtype(df['Month']):
-        # Sort the unique months chronologically before creating the dropdown list
-        sorted_months = sorted(df['Month'].dt.strftime('%b-%y').unique().tolist())
+        # Get unique months and sort them chronologically by the datetime values
+        unique_months = df['Month'].unique()
+        # Sort the datetime values
+        sorted_months_dt = sorted(unique_months)
+        # Convert to string format for display
+        sorted_months = [dt.strftime('%b-%y') for dt in sorted_months_dt]
         month_options = ['All'] + sorted_months
         selected_month = st.selectbox("Select Month", month_options)
         if selected_month != 'All':
@@ -153,7 +179,7 @@ def format_currency_short(num):
         return "Rp 0"
     return f"Rp {num:,.2f}"
 
-# ============ DONUT CHART FUNCTION (CENTERED HORIZONTAL LEGEND) ============
+# ============ DONUT CHART FUNCTION ============
 def create_donut_chart(data, name_col, value_col, colors=None):
     """Create a donut chart with percentage labels on segments and a clean vertical legend"""
     df = data.reset_index()
@@ -175,7 +201,7 @@ def create_donut_chart(data, name_col, value_col, colors=None):
         color=alt.Color(name_col + ':N', 
                         legend=alt.Legend(
                             title=None, 
-                            orient='right', # VERTICAL LEGEND
+                            orient='right',
                             labelFontSize=12,
                             labelLimit=200
                         ),
@@ -202,12 +228,12 @@ def create_donut_chart(data, name_col, value_col, colors=None):
     )
     
     final_chart = (chart + text).properties(
-        width=350,  # Slightly wider to accommodate the vertical legend on the right
+        width=350,
         height=300
     ).configure_view(
         strokeWidth=0
     ).configure_legend(
-        orient='right', # Keep it strictly vertical on the right
+        orient='right',
         labelFontSize=12,
         titleFontSize=14,
         labelLimit=150,
@@ -217,7 +243,7 @@ def create_donut_chart(data, name_col, value_col, colors=None):
     
     return final_chart
 
-# ============ BAR CHART FUNCTION (FORCED CHRONOLOGICAL ORDER) ============
+# ============ BAR CHART FUNCTION ============
 def create_bar_chart(data, x_col, y_col, color=None):
     df = data.reset_index()
     df.columns = [x_col, y_col]
@@ -229,7 +255,6 @@ def create_bar_chart(data, x_col, y_col, color=None):
     ).encode(
         x=alt.X(x_col + ':O', 
                 axis=alt.Axis(labels=True, title=None, labelAngle=-45),
-                # FORCE to follow the exact order of the dataframe (Jan -> Jul)
                 sort=None 
                 ),
         y=alt.Y(y_col + ':Q', 
@@ -245,7 +270,6 @@ def create_bar_chart(data, x_col, y_col, color=None):
         fontWeight='bold',
         color=DARK_BLUE
     ).encode(
-        # FORCE text to follow the exact same order
         x=alt.X(x_col + ':O', sort=None),
         y=alt.Y(y_col + ':Q'),
         text=alt.Text(y_col + ':Q', format=',.0f')
@@ -298,7 +322,6 @@ if 'KOL_Name' in filtered_df.columns:
     kol_cleaned = kol_cleaned.str.replace(r'\s+', ' ', regex=True)
     kol_cleaned = kol_cleaned.str.replace('\u200b', '', regex=False)
     kol_cleaned = kol_cleaned.str.replace('\u00a0', ' ', regex=False)
-    kol_cleaned = kol_cleaned.str.title()
     total_kols = kol_cleaned.nunique()
 else:
     total_kols = 0
@@ -396,11 +419,9 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# Ensure we aggregate with .sort_index() to maintain the pure chronological data
 monthly_data = filtered_df.groupby('Month')['Actual_Spends_IDR'].sum().sort_index()
 
 if not monthly_data.empty:
-    # Convert to short names for display
     monthly_data.index = monthly_data.index.strftime('%b')
     chart = create_bar_chart(monthly_data, 'Month', 'Actual_Spends_IDR', DARK_BLUE)
     st.altair_chart(chart, use_container_width=True)
@@ -509,7 +530,7 @@ if 'KOL_Name' in filtered_df.columns:
     st.markdown(f'<div class="dataframe-container">{table_html}</div>', unsafe_allow_html=True)
 
 # ============ KOL SEARCH FEATURE ============
-section_header_with_divider("Search KOL Performance")
+section_header_with_divider("🔍 Search KOL Performance")
 
 st.markdown("""
 <div style="margin-bottom: 15px; color: #555; font-size: 14px;">
@@ -517,35 +538,14 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Helper function to clean KOL name
-def clean_kol_name(name):
-    """Remove numbers/prefixes before KOL name and clean up"""
-    if pd.isna(name):
-        return name
-    name = str(name).strip()
-    # Remove patterns like "593 " or "123 " at the start
-    name = re.sub(r'^\d+\s+', '', name)
-    # Remove any remaining leading numbers
-    name = re.sub(r'^\d+', '', name)
-    name = name.strip()
-    # Remove zero-width spaces and other special chars
-    name = name.replace('\u200b', '').replace('\u00a0', ' ')
-    # Clean up multiple spaces
-    name = re.sub(r'\s+', ' ', name)
-    return name
-
 # Helper function to format ER (divide by 100)
 def format_er_display(value):
     """Format ER by dividing by 100 if needed"""
     if pd.isna(value):
         return "0%"
-    # If value is > 1, it's likely in percentage format (e.g., 0.51 means 0.51%)
-    # But we need to divide by 100 to get the actual decimal for display
     if value > 1:
-        # If > 1, assume it's already in percentage format (e.g., 51 means 51%)
         return format_percent(value / 100)
     else:
-        # If <= 1, it's a decimal (e.g., 0.0051 means 0.51%)
         return format_percent(value)
 
 # Create search input
@@ -575,34 +575,24 @@ if kol_search or search_button:
             # Create a copy of filtered data for searching
             search_df = filtered_df.copy()
             
-            # Clean KOL names for better matching
-            search_df['KOL_Name_Original'] = search_df['KOL_Name']  # Keep original for display
-            search_df['KOL_Name_Clean'] = search_df['KOL_Name'].apply(clean_kol_name)
-            search_df['KOL_Name_Search'] = search_df['KOL_Name_Clean'].str.lower()
+            # KOL names are already cleaned in the main dataframe
+            search_df['KOL_Name_Search'] = search_df['KOL_Name'].str.lower()
             
             # Find matching KOLs (partial match on cleaned name)
             matching_kols = search_df[search_df['KOL_Name_Search'].str.contains(search_term, na=False, case=False)]
             
             if not matching_kols.empty:
-                # Get unique KOLs that match (use cleaned name for grouping)
-                unique_kols = matching_kols.groupby('KOL_Name_Clean')['KOL_Name_Original'].first().reset_index()
-                unique_kols.columns = ['Clean_Name', 'Original_Name']
+                # Get unique KOLs that match
+                unique_kols = matching_kols['KOL_Name'].unique()
                 
                 st.success(f"✅ Found {len(unique_kols)} KOL(s) matching '{kol_search}'")
                 
                 # Display results for each matching KOL
-                for _, row in unique_kols.iterrows():
-                    clean_name = row['Clean_Name']
-                    original_name = row['Original_Name']
-                    
-                    # Get all data for this KOL
-                    kol_data = matching_kols[matching_kols['KOL_Name'] == original_name].copy()
-                    
-                    # Use clean name for display
-                    display_name = clean_name if clean_name else original_name
+                for kol_name in unique_kols:
+                    kol_data = matching_kols[matching_kols['KOL_Name'] == kol_name].copy()
                     
                     # Create an expander for each KOL
-                    with st.expander(f"📊 {display_name}", expanded=True):
+                    with st.expander(f"📊 {kol_name}", expanded=True):
                         # Prepare display data
                         display_kol = kol_data.copy()
                         
@@ -614,10 +604,8 @@ if kol_search or search_button:
                         # Format ER by dividing by 100
                         for col in ['ER', 'ER_Views', 'VR']:
                             if col in display_kol.columns:
-                                # Convert to numeric first if it's string
                                 if display_kol[col].dtype == 'object':
                                     display_kol[col] = pd.to_numeric(display_kol[col].astype(str).str.replace('%', '').str.replace(',', ''), errors='coerce')
-                                # Apply formatting with division by 100
                                 display_kol[col] = display_kol[col].apply(format_er_display)
                         
                         # Calculate CPV
@@ -626,44 +614,33 @@ if kol_search or search_button:
                         elif 'CPV_Rp' in display_kol.columns:
                             display_kol['CPV'] = display_kol['CPV_Rp'].apply(format_currency_short)
                         
-                        # Add cleaned KOL Name column for display
-                        display_kol['KOL_Name'] = display_kol['KOL_Name'].apply(clean_kol_name)
-                        
-                        # Select columns for display (prioritize the ones shown in the example)
+                        # Select columns for display
                         display_columns = []
                         
                         # Define desired column order based on example
                         desired_order = ['KOL_Name', 'Category', 'Brands', 'Tier', 'Objective', 'Platform', 'Month', 'Actual_Spends_IDR', 'Views', 'ER', 'VR', 'Likes', 'CPV']
                         
-                        # Add columns that exist in the data
                         for col in desired_order:
                             if col in display_kol.columns:
-                                # Skip CPV_Rp since we use CPV from calculated
                                 if col == 'CPV_Rp':
                                     continue
-                                # Use CPV instead of CPV_Calculated
                                 if col == 'CPV_Calculated':
                                     display_columns.append('CPV')
                                 else:
                                     display_columns.append(col)
                         
-                        # Also add any other relevant columns that might be useful
                         extra_columns = ['Reach', 'Comments', 'Share', 'Followers_Number', 'ER_Views', 'Engagement']
                         for col in extra_columns:
                             if col in display_kol.columns and col not in display_columns:
                                 display_columns.append(col)
                         
-                        # Remove duplicates
                         display_columns = list(dict.fromkeys(display_columns))
                         
-                        # Ensure we have at least some columns
                         if not display_columns:
                             display_columns = ['KOL_Name', 'Platform', 'Month', 'Actual_Spends_IDR', 'Views']
                         
-                        # Create display dataframe
                         display_df = display_kol[display_columns].copy()
                         
-                        # Rename columns for better display
                         column_rename = {
                             'KOL_Name': 'KOL Name',
                             'Actual_Spends_IDR': 'Cost',
@@ -676,18 +653,15 @@ if kol_search or search_button:
                             if old in display_df.columns:
                                 display_df = display_df.rename(columns={old: new})
                         
-                        # Format date columns if they exist
                         if 'Month' in display_df.columns and pd.api.types.is_datetime64_any_dtype(display_df['Month']):
                             display_df['Month'] = display_df['Month'].dt.strftime('%b-%y')
                         
-                        # Display the table
-                        st.dataframe(display_df, use_container_width=True)
+                        # Display the table - HIDE THE INDEX
+                        st.dataframe(display_df, use_container_width=True, hide_index=True)
                         
-                        # Show summary stats for this KOL
                         st.markdown("---")
                         st.markdown("**📈 Performance Summary**")
                         
-                        # Calculate summary metrics
                         summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
                         
                         with summary_col1:
@@ -704,7 +678,6 @@ if kol_search or search_button:
                         
                         with summary_col4:
                             if 'ER' in kol_data.columns:
-                                # Calculate average ER and divide by 100
                                 er_values = kol_data['ER'].dropna()
                                 if len(er_values) > 0:
                                     avg_er = er_values.mean() / 100
@@ -717,11 +690,9 @@ if kol_search or search_button:
             else:
                 st.warning(f"❌ No KOL found matching '{kol_search}'. Please try a different name.")
                 
-                # Show suggestions
                 if 'KOL_Name' in filtered_df.columns:
-                    # Get unique cleaned KOL names
-                    all_kols = filtered_df['KOL_Name'].apply(clean_kol_name).unique()
-                    all_kols = [k for k in all_kols if k and not pd.isna(k)][:10]
+                    all_kols = filtered_df['KOL_Name'].unique()[:10]
+                    all_kols = [k for k in all_kols if k and not pd.isna(k)]
                     if len(all_kols) > 0:
                         st.markdown("**💡 Suggestions:**")
                         st.write(", ".join(all_kols[:5]))
@@ -734,7 +705,6 @@ if kol_search or search_button:
 else:
     st.info("👆 Enter a KOL name above and click Search to view their performance details.")
 
-# Add a "Clear" button for convenience
 if kol_search:
     if st.button("🔄 Clear Search"):
         st.rerun()
@@ -744,8 +714,6 @@ section_header_with_divider("Full Data Table")
 
 display_full_df = filtered_df.copy()
 
-# ============ NEW: DROP THE UNNAMED COLUMNS ============
-# This removes columns like "Unnamed: _10" and "Unnamed: _11" from the table
 display_full_df = display_full_df.loc[:, ~display_full_df.columns.str.startswith('Unnamed')]
 
 for col in ['Views', 'Reach', 'Likes', 'Comments', 'Share', 'Followers_Number', 'Actual_Spends_IDR']:
@@ -759,7 +727,7 @@ for col in ['ER', 'ER_Views', 'VR']:
 if 'CPV_Calculated' in display_full_df.columns:
     display_full_df['CPV_Calculated'] = display_full_df['CPV_Calculated'].apply(format_currency_short)
 
-st.dataframe(display_full_df, use_container_width=True)
+st.dataframe(display_full_df, use_container_width=True, hide_index=True)
 st.caption(f"Showing {len(filtered_df):,} rows out of {len(df):,} total")
 
 # ============ DOWNLOAD BUTTON ============
@@ -771,3 +739,13 @@ if not filtered_df.empty:
         file_name='filtered_union_data_kol.csv',
         mime='text/csv'
     )
+
+# ============ COLUMN INFO ============
+with st.expander("Column Information"):
+    col_info = pd.DataFrame({
+        'Column': df.columns,
+        'Type': df.dtypes.astype(str),
+        'Unique Values': [df[col].nunique() for col in df.columns],
+        'Missing Values': [df[col].isnull().sum() for col in df.columns]
+    })
+    st.dataframe(col_info)
