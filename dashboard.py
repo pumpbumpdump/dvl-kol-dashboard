@@ -7,7 +7,7 @@ import re
 
 # ============ PAGE CONFIG ============
 st.set_page_config(
-    page_title="Darya Vario Laboratoria KOL Dashboard",
+    page_title="Darya Varia Laboratoria KOL Dashboard",
     page_icon="📊",
     layout="wide"
 )
@@ -29,7 +29,7 @@ with st.sidebar:
     
     st.markdown(f"""
     <div style="text-align: center; color: {DARK_BLUE}; font-size: 18px; font-weight: bold; margin-bottom: 20px;">
-        Darya Vario Laboratoria<br>KOL Dashboard
+        Darya Varia Laboratoria<br>KOL Dashboard
     </div>
     """, unsafe_allow_html=True)
     
