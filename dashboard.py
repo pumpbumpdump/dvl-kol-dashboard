@@ -563,7 +563,7 @@ if 'KOL_Name' in filtered_df.columns:
     st.markdown(f'<div class="dataframe-container">{table_html}</div>', unsafe_allow_html=True)
 
 # ============ KOL SEARCH FEATURE ============
-section_header_with_divider("🔍 Search KOL Performance")
+section_header_with_divider("Search KOL Performance")
 
 st.markdown("""
 <div style="margin-bottom: 15px; color: #555; font-size: 14px;">
