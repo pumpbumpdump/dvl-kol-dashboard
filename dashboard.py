@@ -7,7 +7,7 @@ import re
 
 # ============ PAGE CONFIG ============
 st.set_page_config(
-    page_title="Darya Varia Laboratoria KOL Dashboard",
+    page_title="Darya Vario Laboratoria KOL Dashboard",
     page_icon="📊",
     layout="wide"
 )
@@ -29,7 +29,7 @@ with st.sidebar:
     
     st.markdown(f"""
     <div style="text-align: center; color: {DARK_BLUE}; font-size: 18px; font-weight: bold; margin-bottom: 20px;">
-        Darya Varia Laboratoria<br>KOL Dashboard
+        Darya Vario Laboratoria<br>KOL Dashboard
     </div>
     """, unsafe_allow_html=True)
     
@@ -57,6 +57,31 @@ if df.empty:
 
 # ============ CLEAN COLUMN NAMES ============
 df.columns = [str(col).strip().replace(' ', '_').replace('/', '_').replace('-', '_').replace('(', '').replace(')', '') for col in df.columns]
+
+# ============ CLEAN PLATFORM NAMES ============
+if 'Platform' in df.columns:
+    df['Platform'] = df['Platform'].astype(str).str.strip()
+    # Standardize TikTok variations
+    df['Platform'] = df['Platform'].str.replace('Tiktok', 'TikTok', case=False)
+    df['Platform'] = df['Platform'].str.replace('tiktok', 'TikTok', case=False)
+    # Standardize X
+    df['Platform'] = df['Platform'].str.replace('x', 'X', case=False)
+    # Standardize Instagram
+    df['Platform'] = df['Platform'].str.replace('instagram', 'Instagram', case=False)
+    # Clean up any extra spaces
+    df['Platform'] = df['Platform'].str.strip()
+
+# Clean Tier names
+if 'Tier' in df.columns:
+    df['Tier'] = df['Tier'].astype(str).str.strip()
+    df['Tier'] = df['Tier'].str.capitalize()
+
+# Clean Sub_Brands and Brands if they exist
+if 'Sub_Brands' in df.columns:
+    df['Sub_Brands'] = df['Sub_Brands'].astype(str).str.strip()
+
+if 'Brands' in df.columns:
+    df['Brands'] = df['Brands'].astype(str).str.strip()
 
 # ============ CONVERT DATA TYPES ============
 numeric_cols = ['Followers_Number', 'Actual_Spends_IDR', 'Reach', 'Views', 'Likes', 'Comments', 'Share', 'ER', 'ER_Views', 'VR', 'CPV_Rp']
@@ -140,21 +165,37 @@ with st.sidebar:
         if selected_tiers:
             filtered_df = filtered_df[filtered_df['Tier'].isin(selected_tiers)]
     
-    # Filter by Platform - MULTISELECT with "Select All" option
-    if 'Platform' in df.columns:
-        platform_options = ['Select All'] + sorted(df['Platform'].dropna().unique().tolist())
-        selected_platforms = st.multiselect(
-            "Select Platforms",
-            options=platform_options,
+    # Filter by Sub_Brands - MULTISELECT with "Select All" option
+    if 'Sub_Brands' in df.columns:
+        sub_brands_options = ['Select All'] + sorted(df['Sub_Brands'].dropna().unique().tolist())
+        selected_sub_brands = st.multiselect(
+            "Select Sub Brands",
+            options=sub_brands_options,
             default=['Select All']
         )
         
         # Handle "Select All" selection
-        if 'Select All' in selected_platforms:
-            selected_platforms = sorted(df['Platform'].dropna().unique().tolist())
+        if 'Select All' in selected_sub_brands:
+            selected_sub_brands = sorted(df['Sub_Brands'].dropna().unique().tolist())
         
-        if selected_platforms:
-            filtered_df = filtered_df[filtered_df['Platform'].isin(selected_platforms)]
+        if selected_sub_brands:
+            filtered_df = filtered_df[filtered_df['Sub_Brands'].isin(selected_sub_brands)]
+    
+    # Filter by Brands - MULTISELECT with "Select All" option
+    if 'Brands' in df.columns:
+        brands_options = ['Select All'] + sorted(df['Brands'].dropna().unique().tolist())
+        selected_brands = st.multiselect(
+            "Select Brands",
+            options=brands_options,
+            default=['Select All']
+        )
+        
+        # Handle "Select All" selection
+        if 'Select All' in selected_brands:
+            selected_brands = sorted(df['Brands'].dropna().unique().tolist())
+        
+        if selected_brands:
+            filtered_df = filtered_df[filtered_df['Brands'].isin(selected_brands)]
     
     # Add a "Clear All Filters" button
     if st.button("🔄 Clear All Filters", use_container_width=True):
@@ -212,70 +253,6 @@ def format_currency_short(num):
         return "Rp 0"
     return f"Rp {num:,.2f}"
 
-# ============ DONUT CHART FUNCTION ============
-def create_donut_chart(data, name_col, value_col, colors=None):
-    """Create a donut chart with percentage labels on segments and a clean vertical legend"""
-    df = data.reset_index()
-    df.columns = [name_col, value_col]
-    
-    total = df[value_col].sum()
-    df['percentage'] = (df[value_col] / total * 100).round(1)
-    
-    if colors is None:
-        colors = [DARK_BLUE, LIGHT_BLUE, '#6ba3d9', '#a8c8e8', '#d4e4f0']
-    
-    chart = alt.Chart(df).mark_arc(
-        innerRadius=70,
-        cornerRadius=5,
-        stroke='white',
-        strokeWidth=2
-    ).encode(
-        theta=alt.Theta(value_col + ':Q', stack=True),
-        color=alt.Color(name_col + ':N', 
-                        legend=alt.Legend(
-                            title=None, 
-                            orient='right',
-                            labelFontSize=12,
-                            labelLimit=200
-                        ),
-                        scale=alt.Scale(range=colors[:len(df)])),
-        tooltip=[
-            alt.Tooltip(name_col + ':N', title='Category'),
-            alt.Tooltip(value_col + ':Q', format=',.0f', title='Spend'),
-            alt.Tooltip('percentage:Q', format='.1f', title='%')
-        ]
-    ).properties(
-        width=300, 
-        height=300
-    )
-    
-    text = alt.Chart(df).mark_text(
-        fontSize=12,
-        fontWeight='bold',
-        color='white',
-        stroke='white',
-        strokeWidth=0.5
-    ).encode(
-        theta=alt.Theta(value_col + ':Q', stack=True),
-        text=alt.Text('percentage:Q', format='.1f')
-    )
-    
-    final_chart = (chart + text).properties(
-        width=350,
-        height=300
-    ).configure_view(
-        strokeWidth=0
-    ).configure_legend(
-        orient='right',
-        labelFontSize=12,
-        titleFontSize=14,
-        labelLimit=150,
-        labelPadding=10,
-        rowPadding=5
-    )
-    
-    return final_chart
-
 # ============ BAR CHART FUNCTION ============
 def create_bar_chart(data, x_col, y_col, color=None):
     df = data.reset_index()
@@ -287,7 +264,7 @@ def create_bar_chart(data, x_col, y_col, color=None):
         cornerRadiusTopRight=4
     ).encode(
         x=alt.X(x_col + ':O', 
-                axis=alt.Axis(labels=True, title=None, labelAngle=-45),
+                axis=alt.Axis(labels=True, title=None, labelAngle=0),
                 sort=None 
                 ),
         y=alt.Y(y_col + ':Q', 
@@ -299,7 +276,7 @@ def create_bar_chart(data, x_col, y_col, color=None):
         align='center',
         baseline='bottom',
         dy=-10,
-        fontSize=11,
+        fontSize=13,  # Changed from 16 to 13 - smaller but still readable
         fontWeight='bold',
         color=DARK_BLUE
     ).encode(
@@ -461,7 +438,7 @@ if not monthly_data.empty:
 else:
     st.info("No data available for Spend by Month")
 
-# ============ DONUT CHARTS ============
+# ============ STACKED BAR CHARTS ============
 st.markdown("<br>", unsafe_allow_html=True)
 
 col1, col2 = st.columns(2, gap="large")
@@ -473,14 +450,79 @@ with col1:
     </div>
     """, unsafe_allow_html=True)
     
-    platform_data = filtered_df.groupby('Platform')['Actual_Spends_IDR'].sum().sort_values(ascending=False)
-    platform_data = platform_data[platform_data > 0]
-    
-    if not platform_data.empty:
-        chart = create_donut_chart(platform_data, 'Platform', 'Actual_Spends_IDR')
-        st.altair_chart(chart, use_container_width=False)
+    # Create stacked bar chart for Platform by Month
+    if 'Platform' in filtered_df.columns and 'Month' in filtered_df.columns:
+        platform_month_data = filtered_df.groupby(['Month', 'Platform'])['Actual_Spends_IDR'].sum().reset_index()
+        
+        # Calculate total spend per month for percentage calculation
+        month_totals = platform_month_data.groupby('Month')['Actual_Spends_IDR'].sum().reset_index()
+        month_totals.columns = ['Month', 'Total_Spend']
+        
+        # Merge to get percentage
+        platform_month_data = platform_month_data.merge(month_totals, on='Month')
+        platform_month_data['Percentage'] = (platform_month_data['Actual_Spends_IDR'] / platform_month_data['Total_Spend'] * 100).round(2)
+        
+        # Sort months chronologically
+        platform_month_data['Month_Str'] = platform_month_data['Month'].dt.strftime('%b')
+        
+        # Get unique months in chronological order
+        month_order = sorted(platform_month_data['Month'].unique())
+        month_order_str = [m.strftime('%b') for m in month_order]
+        
+        if not platform_month_data.empty:
+            # Get unique platforms for color mapping
+            unique_platforms = platform_month_data['Platform'].unique().tolist()
+            
+            # Create color scale matching donut chart colors
+            platform_colors = [DARK_BLUE, LIGHT_BLUE, '#6ba3d9', '#a8c8e8', '#d4e4f0']
+            # If more platforms than colors, extend with more colors
+            while len(platform_colors) < len(unique_platforms):
+                platform_colors.append('#e8e8e8')
+            
+            # Create stacked bar chart - NO TEXT LABELS
+            chart = alt.Chart(platform_month_data).mark_bar(
+                cornerRadiusTopLeft=2,
+                cornerRadiusTopRight=2
+            ).encode(
+                x=alt.X('Month_Str:O', 
+                        title=None,
+                        sort=month_order_str,
+                        axis=alt.Axis(labels=True, labelAngle=0)),
+                y=alt.Y('Actual_Spends_IDR:Q', 
+                        title=None,
+                        axis=alt.Axis(labels=False)),
+                color=alt.Color('Platform:N', 
+                                legend=alt.Legend(
+                                    title=None,
+                                    orient='right',
+                                    labelFontSize=11,
+                                    labelLimit=150,
+                                    labelPadding=10,
+                                    rowPadding=5
+                                ),
+                                scale=alt.Scale(range=platform_colors)),
+                tooltip=[
+                    alt.Tooltip('Month_Str:O', title='Month'),
+                    alt.Tooltip('Platform:N', title='Platform'),
+                    alt.Tooltip('Actual_Spends_IDR:Q', format=',.0f', title='Spend'),
+                    alt.Tooltip('Percentage:Q', format='.2f', title='%')
+                ]
+            ).properties(
+                width='container',
+                height=350
+            ).configure_view(
+                strokeWidth=0
+            ).configure_axis(
+                labelFontSize=12,
+                labelColor='#666',
+                grid=False
+            )
+            
+            st.altair_chart(chart, use_container_width=True)
+        else:
+            st.info("No data available for Spend by Platform")
     else:
-        st.info("No data available for Spend by Platform")
+        st.info("Data not available for stacked chart")
 
 with col2:
     st.markdown(f"""
@@ -489,14 +531,79 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
     
-    tier_data = filtered_df.groupby('Tier')['Actual_Spends_IDR'].sum().sort_values(ascending=False)
-    tier_data = tier_data[tier_data > 0]
-    
-    if not tier_data.empty:
-        chart = create_donut_chart(tier_data, 'Tier', 'Actual_Spends_IDR', [LIGHT_BLUE, DARK_BLUE, '#6ba3d9', '#a8c8e8'])
-        st.altair_chart(chart, use_container_width=False)
+    # Create stacked bar chart for Tier by Month
+    if 'Tier' in filtered_df.columns and 'Month' in filtered_df.columns:
+        tier_month_data = filtered_df.groupby(['Month', 'Tier'])['Actual_Spends_IDR'].sum().reset_index()
+        
+        # Calculate total spend per month for percentage calculation
+        month_totals = tier_month_data.groupby('Month')['Actual_Spends_IDR'].sum().reset_index()
+        month_totals.columns = ['Month', 'Total_Spend']
+        
+        # Merge to get percentage
+        tier_month_data = tier_month_data.merge(month_totals, on='Month')
+        tier_month_data['Percentage'] = (tier_month_data['Actual_Spends_IDR'] / tier_month_data['Total_Spend'] * 100).round(2)
+        
+        # Sort months chronologically
+        tier_month_data['Month_Str'] = tier_month_data['Month'].dt.strftime('%b')
+        
+        # Get unique months in chronological order
+        month_order = sorted(tier_month_data['Month'].unique())
+        month_order_str = [m.strftime('%b') for m in month_order]
+        
+        if not tier_month_data.empty:
+            # Get unique tiers for color mapping
+            unique_tiers = tier_month_data['Tier'].unique().tolist()
+            
+            # Create color scale matching donut chart colors
+            tier_colors = [LIGHT_BLUE, DARK_BLUE, '#6ba3d9', '#a8c8e8', '#d4e4f0']
+            # If more tiers than colors, extend with more colors
+            while len(tier_colors) < len(unique_tiers):
+                tier_colors.append('#e8e8e8')
+            
+            # Create stacked bar chart - NO TEXT LABELS
+            chart = alt.Chart(tier_month_data).mark_bar(
+                cornerRadiusTopLeft=2,
+                cornerRadiusTopRight=2
+            ).encode(
+                x=alt.X('Month_Str:O', 
+                        title=None,
+                        sort=month_order_str,
+                        axis=alt.Axis(labels=True, labelAngle=0)),
+                y=alt.Y('Actual_Spends_IDR:Q', 
+                        title=None,
+                        axis=alt.Axis(labels=False)),
+                color=alt.Color('Tier:N', 
+                                legend=alt.Legend(
+                                    title=None,
+                                    orient='right',
+                                    labelFontSize=11,
+                                    labelLimit=150,
+                                    labelPadding=10,
+                                    rowPadding=5
+                                ),
+                                scale=alt.Scale(range=tier_colors)),
+                tooltip=[
+                    alt.Tooltip('Month_Str:O', title='Month'),
+                    alt.Tooltip('Tier:N', title='Tier'),
+                    alt.Tooltip('Actual_Spends_IDR:Q', format=',.0f', title='Spend'),
+                    alt.Tooltip('Percentage:Q', format='.2f', title='%')
+                ]
+            ).properties(
+                width='container',
+                height=350
+            ).configure_view(
+                strokeWidth=0
+            ).configure_axis(
+                labelFontSize=12,
+                labelColor='#666',
+                grid=False
+            )
+            
+            st.altair_chart(chart, use_container_width=True)
+        else:
+            st.info("No data available for Spend by Tier")
     else:
-        st.info("No data available for Spend by Tier")
+        st.info("Data not available for stacked chart")
 
 # ============ TOP PERFORMING KOLS ============
 section_header_with_divider("Top 10 KOL Performance")
@@ -563,7 +670,7 @@ if 'KOL_Name' in filtered_df.columns:
     st.markdown(f'<div class="dataframe-container">{table_html}</div>', unsafe_allow_html=True)
 
 # ============ KOL SEARCH FEATURE ============
-section_header_with_divider("Search KOL Performance")
+section_header_with_divider("🔍 Search KOL Performance")
 
 st.markdown("""
 <div style="margin-bottom: 15px; color: #555; font-size: 14px;">
