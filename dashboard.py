@@ -276,7 +276,7 @@ def create_bar_chart(data, x_col, y_col, color=None):
         align='center',
         baseline='bottom',
         dy=-10,
-        fontSize=13,  # Changed from 16 to 13 - smaller but still readable
+        fontSize=13,
         fontWeight='bold',
         color=DARK_BLUE
     ).encode(
@@ -615,7 +615,8 @@ if 'KOL_Name' in filtered_df.columns:
         'Share': 'sum',
         'Followers_Number': 'max',
         'Actual_Spends_IDR': 'sum',
-        'Tier': 'first'
+        'Tier': 'first',
+        'Link_Post': 'first'  # Add Link_Post to the aggregation
     }).reset_index()
     
     kol_agg['ER_Per_Follower'] = (kol_agg['Likes'] + kol_agg['Comments'] + kol_agg['Share']) / kol_agg['Followers_Number']
@@ -632,7 +633,18 @@ if 'KOL_Name' in filtered_df.columns:
     top_kols['ER'] = top_kols['ER_Per_Follower'].apply(format_percent)
     top_kols['Cost'] = top_kols['Actual_Spends_IDR'].apply(format_currency)
     
-    display_df = top_kols[['Rank', 'KOL', 'Tier', 'ER', 'Cost']]
+    # Make Link_Post clickable
+    if 'Link_Post' in top_kols.columns:
+        def make_clickable(link):
+            if pd.isna(link) or link == '':
+                return ''
+            display_text = '🔗 View Post'
+            return f'<a href="{link}" target="_blank" style="color: {DARK_BLUE}; text-decoration: none; font-weight: bold;">{display_text}</a>'
+        
+        top_kols['Link_Post'] = top_kols['Link_Post'].apply(make_clickable)
+        display_df = top_kols[['Rank', 'KOL', 'Tier', 'ER', 'Cost', 'Link_Post']]
+    else:
+        display_df = top_kols[['Rank', 'KOL', 'Tier', 'ER', 'Cost']]
     
     st.markdown("""
     <style>
@@ -663,10 +675,13 @@ if 'KOL_Name' in filtered_df.columns:
     .dataframe-container tbody tr td:first-child {
         text-align: center !important;
     }
+    .dataframe-container tbody tr td:last-child {
+        text-align: center !important;
+    }
     </style>
     """, unsafe_allow_html=True)
     
-    table_html = display_df.to_html(index=False, classes='dataframe-container')
+    table_html = display_df.to_html(index=False, escape=False, classes='dataframe-container')
     st.markdown(f'<div class="dataframe-container">{table_html}</div>', unsafe_allow_html=True)
 
 # ============ KOL SEARCH FEATURE ============
@@ -769,7 +784,7 @@ if kol_search or search_button:
                                 else:
                                     display_columns.append(col)
                         
-                        extra_columns = ['Reach', 'Comments', 'Share', 'Followers_Number', 'ER_Views', 'Engagement']
+                        extra_columns = ['Reach', 'Comments', 'Share', 'Followers_Number', 'ER_Views', 'Engagement', 'Link_Post']
                         for col in extra_columns:
                             if col in display_kol.columns and col not in display_columns:
                                 display_columns.append(col)
@@ -796,8 +811,20 @@ if kol_search or search_button:
                         if 'Month' in display_df.columns and pd.api.types.is_datetime64_any_dtype(display_df['Month']):
                             display_df['Month'] = display_df['Month'].dt.strftime('%b-%y')
                         
-                        # Display the table - HIDE THE INDEX
-                        st.dataframe(display_df, use_container_width=True, hide_index=True)
+                        # Make Link_Post clickable in search results
+                        if 'Link_Post' in display_df.columns:
+                            def make_clickable_search(link):
+                                if pd.isna(link) or link == '':
+                                    return ''
+                                display_text = '🔗 View Post'
+                                return f'<a href="{link}" target="_blank" style="color: {DARK_BLUE}; text-decoration: none; font-weight: bold;">{display_text}</a>'
+                            display_df['Link_Post'] = display_df['Link_Post'].apply(make_clickable_search)
+                        
+                        # Display the table with HTML rendering for clickable links
+                        st.markdown(
+                            display_df.to_html(escape=False, index=False),
+                            unsafe_allow_html=True
+                        )
                         
                         st.markdown("---")
                         st.markdown("**📈 Performance Summary**")
@@ -867,7 +894,23 @@ for col in ['ER', 'ER_Views', 'VR']:
 if 'CPV_Calculated' in display_full_df.columns:
     display_full_df['CPV_Calculated'] = display_full_df['CPV_Calculated'].apply(format_currency_short)
 
-st.dataframe(display_full_df, use_container_width=True, hide_index=True)
+# Convert Link_Post to clickable hyperlinks
+if 'Link_Post' in display_full_df.columns:
+    def make_clickable(link):
+        if pd.isna(link) or link == '':
+            return ''
+        # Truncate long links for display
+        display_text = link[:50] + '...' if len(str(link)) > 50 else link
+        return f'<a href="{link}" target="_blank" style="color: {DARK_BLUE}; text-decoration: none;">{display_text}</a>'
+    
+    display_full_df['Link_Post'] = display_full_df['Link_Post'].apply(make_clickable)
+
+# Display the dataframe with HTML rendering for clickable links
+st.markdown(
+    display_full_df.to_html(escape=False, index=False),
+    unsafe_allow_html=True
+)
+
 st.caption(f"Showing {len(filtered_df):,} rows out of {len(df):,} total")
 
 # ============ DOWNLOAD BUTTON ============
