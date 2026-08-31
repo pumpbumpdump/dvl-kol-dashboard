@@ -7,7 +7,7 @@ import re
 
 # ============ PAGE CONFIG ============
 st.set_page_config(
-    page_title="Darya Vario Laboratoria KOL Dashboard",
+    page_title="Darya Varia Laboratoria KOL Dashboard",
     page_icon="📊",
     layout="wide"
 )
@@ -19,7 +19,7 @@ LIGHT_BLUE = "#4a90d9"
 # ============ SIDEBAR WITH LOGO (TOP) ============
 with st.sidebar:
     try:
-        st.image("dvl-logo-transparent.png", use_container_width=True)
+        st.image("Logo_OM_x_DVL.png", use_container_width=True)
     except:
         st.markdown(f"""
         <div style="display: flex; justify-content: center; font-size: 60px; color: {DARK_BLUE};">
@@ -29,7 +29,7 @@ with st.sidebar:
 
     st.markdown(f"""
     <div style="text-align: center; color: {DARK_BLUE}; font-size: 18px; font-weight: bold; margin-bottom: 20px;">
-        Darya Vario Laboratoria<br>KOL Dashboard
+        Darya Varia Laboratoria<br>KOL Dashboard
     </div>
     """, unsafe_allow_html=True)
 
@@ -58,6 +58,11 @@ if df.empty:
     st.stop()
 
 
+# ============ REMOVE UNWANTED COLUMNS ============
+# Remove "0,019918483" column if it exists
+df = df.loc[:, ~df.columns.astype(str).str.contains('0,019918483', na=False)]
+
+
 # ============ CLEAN COLUMN NAMES ============
 df.columns = [
     str(col).strip()
@@ -66,8 +71,26 @@ df.columns = [
     .replace('-', '_')
     .replace('(', '')
     .replace(')', '')
+    .replace(',', '_')
     for col in df.columns
 ]
+
+
+# ============ RENAME PRODUCT TO CATEGORY ============
+# Check for product column and rename to Category
+product_columns = ['Product', 'product', 'Produk', 'produk', 'PRODUCT', 'Product_Name', 'product_name']
+
+for col in df.columns:
+    if col in product_columns:
+        df = df.rename(columns={col: 'Category'})
+        break
+
+# If no product column found, check if first column might be product/category
+if 'Category' not in df.columns and len(df.columns) > 0:
+    first_col = df.columns[0]
+    # If first column has text values (not numeric, not KOL_Name, not Month)
+    if df[first_col].dtype == 'object' and first_col not in ['KOL_Name', 'Platform', 'Tier', 'Brands', 'Sub_Brands', 'Objective', 'Link_Post', 'Month']:
+        df = df.rename(columns={first_col: 'Category'})
 
 
 # ============ CLEAN PLATFORM NAMES ============
@@ -108,6 +131,10 @@ if 'Sub_Brands' in df.columns:
 
 if 'Brands' in df.columns:
     df['Brands'] = df['Brands'].astype(str).str.strip()
+
+# ============ CLEAN CATEGORY ============
+if 'Category' in df.columns:
+    df['Category'] = df['Category'].astype(str).str.strip()
 
 
 # ============ CONVERT DATA TYPES ============
@@ -322,6 +349,38 @@ with st.sidebar:
         if selected_brands:
             filtered_df = filtered_df[
                 filtered_df['Brands'].isin(selected_brands)
+            ]
+
+
+    # ============ FILTER BY CATEGORY ============
+    if 'Category' in df.columns:
+
+        category_options = [
+            'Select All'
+        ] + sorted(
+            df['Category']
+            .dropna()
+            .unique()
+            .tolist()
+        )
+
+        selected_categories = st.multiselect(
+            "Select Categories",
+            options=category_options,
+            default=['Select All']
+        )
+
+        if 'Select All' in selected_categories:
+            selected_categories = sorted(
+                df['Category']
+                .dropna()
+                .unique()
+                .tolist()
+            )
+
+        if selected_categories:
+            filtered_df = filtered_df[
+                filtered_df['Category'].isin(selected_categories)
             ]
 
 
@@ -847,11 +906,12 @@ if (
 
     platform_month_data['Percentage'] = (
         platform_month_data['Percentage']
-        .round(1)
+        .round(0)  # ROUND TO INTEGER
     )
 
     platform_month_data['Percentage_Label'] = (
         platform_month_data['Percentage']
+        .astype(int)  # Convert to integer
         .astype(str)
         + '%'
     )
@@ -1030,7 +1090,7 @@ if (
                 ),
                 alt.Tooltip(
                     'Percentage:Q',
-                    format='.1f',
+                    format='.0f',
                     title='%'
                 )
             ]
@@ -1166,11 +1226,12 @@ if (
 
     tier_month_data['Percentage'] = (
         tier_month_data['Percentage']
-        .round(1)
+        .round(0)  # ROUND TO INTEGER
     )
 
     tier_month_data['Percentage_Label'] = (
         tier_month_data['Percentage']
+        .astype(int)  # Convert to integer
         .astype(str)
         + '%'
     )
@@ -1334,7 +1395,7 @@ if (
                 ),
                 alt.Tooltip(
                     'Percentage:Q',
-                    format='.1f',
+                    format='.0f',
                     title='%'
                 )
             ]
