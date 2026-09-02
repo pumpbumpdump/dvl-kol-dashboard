@@ -76,21 +76,28 @@ df.columns = [
 ]
 
 
-# ============ RENAME PRODUCT TO CATEGORY ============
-# Check for product column and rename to Category
-product_columns = ['Product', 'product', 'Produk', 'produk', 'PRODUCT', 'Product_Name', 'product_name']
+# ============ FIX: PROPERLY HANDLE PRODUCT ============
+# Check if we have a Product column
+has_product = any(col in df.columns for col in ['Product', 'product', 'Produk', 'produk', 'PRODUCT'])
 
-for col in df.columns:
-    if col in product_columns:
-        df = df.rename(columns={col: 'Category'})
-        break
-
-# If no product column found, check if first column might be product/category
-if 'Category' not in df.columns and len(df.columns) > 0:
+# If we have a Product column, rename it to Product
+if has_product:
+    product_columns = ['Product', 'product', 'Produk', 'produk', 'PRODUCT', 'Product_Name', 'product_name']
+    for col in df.columns:
+        if col in product_columns:
+            df = df.rename(columns={col: 'Product'})
+            break
+# If no product but we have first column that might be product
+elif not has_product and len(df.columns) > 0:
     first_col = df.columns[0]
     # If first column has text values (not numeric, not KOL_Name, not Month)
-    if df[first_col].dtype == 'object' and first_col not in ['KOL_Name', 'Platform', 'Tier', 'Brands', 'Sub_Brands', 'Objective', 'Link_Post', 'Month']:
-        df = df.rename(columns={first_col: 'Category'})
+    if (df[first_col].dtype == 'object' and 
+        first_col not in ['KOL_Name', 'Platform', 'Tier', 'Brands', 'Sub_Brands', 'Objective', 'Link_Post', 'Month']):
+        df = df.rename(columns={first_col: 'Product'})
+
+# Clean Product values
+if 'Product' in df.columns:
+    df['Product'] = df['Product'].astype(str).str.strip()
 
 
 # ============ CLEAN PLATFORM NAMES ============
@@ -131,10 +138,6 @@ if 'Sub_Brands' in df.columns:
 
 if 'Brands' in df.columns:
     df['Brands'] = df['Brands'].astype(str).str.strip()
-
-# ============ CLEAN CATEGORY ============
-if 'Category' in df.columns:
-    df['Category'] = df['Category'].astype(str).str.strip()
 
 
 # ============ CONVERT DATA TYPES ============
@@ -352,35 +355,35 @@ with st.sidebar:
             ]
 
 
-    # ============ FILTER BY CATEGORY ============
-    if 'Category' in df.columns:
+    # ============ FILTER BY PRODUCT ============
+    if 'Product' in df.columns:
 
-        category_options = [
+        product_options = [
             'Select All'
         ] + sorted(
-            df['Category']
+            df['Product']
             .dropna()
             .unique()
             .tolist()
         )
 
-        selected_categories = st.multiselect(
+        selected_products = st.multiselect(
             "Select Categories",
-            options=category_options,
+            options=product_options,
             default=['Select All']
         )
 
-        if 'Select All' in selected_categories:
-            selected_categories = sorted(
-                df['Category']
+        if 'Select All' in selected_products:
+            selected_products = sorted(
+                df['Product']
                 .dropna()
                 .unique()
                 .tolist()
             )
 
-        if selected_categories:
+        if selected_products:
             filtered_df = filtered_df[
-                filtered_df['Category'].isin(selected_categories)
+                filtered_df['Product'].isin(selected_products)
             ]
 
 
@@ -680,64 +683,90 @@ avg_cpv = (
 
 # ============ KPI METRICS - ROW 1 ============
 section_header_no_divider(
-    "Key Performance Indicators"
+    "Overall Performance"
 )
+
+# Add CSS for KPI cards with elegant borders and bold headers
+st.markdown("""
+<style>
+.kpi-card {
+    border: 1.5px solid #d0d7e2;
+    border-radius: 10px;
+    padding: 16px 12px;
+    margin: 5px 0;
+    background: linear-gradient(135deg, #fafbfc 0%, #ffffff 100%);
+    box-shadow: 0 1px 3px rgba(26, 58, 92, 0.06);
+    transition: all 0.25s ease;
+    height: 100%;
+    position: relative;
+}
+.kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #1a3a5c, #4a90d9);
+    border-radius: 10px 10px 0 0;
+    opacity: 0.6;
+}
+.kpi-card:hover {
+    box-shadow: 0 4px 12px rgba(26, 58, 92, 0.10);
+    border-color: #b0c0d0;
+    transform: translateY(-1px);
+}
+.kpi-label {
+    margin-bottom: 2px;
+    color: #1a3a5c;
+    font-size: 13px;
+    text-align: center;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.kpi-value {
+    font-size: 24px;
+    font-weight: 600;
+    margin-top: 2px;
+    text-align: center;
+    color: #1a3a5c;
+    letter-spacing: -0.5px;
+}
+</style>
+""", unsafe_allow_html=True)
 
 col1, col2, col3, col4 = st.columns(4)
 
-
 with col1:
-
     st.markdown(f"""
-    <div style="text-align: center">
-        <p style="margin-bottom: 0; color: #888; font-size: 14px;">
-            Views
-        </p>
-        <p style="font-size: 24px; font-weight: bold; margin-top: 0;">
-            {format_number(total_views)}
-        </p>
+    <div class="kpi-card">
+        <p class="kpi-label">Views</p>
+        <p class="kpi-value">{format_number(total_views)}</p>
     </div>
     """, unsafe_allow_html=True)
-
 
 with col2:
-
     st.markdown(f"""
-    <div style="text-align: center">
-        <p style="margin-bottom: 0; color: #888; font-size: 14px;">
-            Reach
-        </p>
-        <p style="font-size: 24px; font-weight: bold; margin-top: 0;">
-            {format_number(total_reach)}
-        </p>
+    <div class="kpi-card">
+        <p class="kpi-label">Reach</p>
+        <p class="kpi-value">{format_number(total_reach)}</p>
     </div>
     """, unsafe_allow_html=True)
-
 
 with col3:
-
     st.markdown(f"""
-    <div style="text-align: center">
-        <p style="margin-bottom: 0; color: #888; font-size: 14px;">
-            Engagement
-        </p>
-        <p style="font-size: 24px; font-weight: bold; margin-top: 0;">
-            {format_number(total_engagement)}
-        </p>
+    <div class="kpi-card">
+        <p class="kpi-label">Engagement</p>
+        <p class="kpi-value">{format_number(total_engagement)}</p>
     </div>
     """, unsafe_allow_html=True)
 
-
 with col4:
-
     st.markdown(f"""
-    <div style="text-align: center">
-        <p style="margin-bottom: 0; color: #888; font-size: 14px;">
-            Spend
-        </p>
-        <p style="font-size: 24px; font-weight: bold; margin-top: 0;">
-            {format_currency(total_spend)}
-        </p>
+    <div class="kpi-card">
+        <p class="kpi-label">Spend</p>
+        <p class="kpi-value">{format_currency(total_spend)}</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -745,59 +774,35 @@ with col4:
 # ============ KPI METRICS - ROW 2 ============
 col1, col2, col3, col4 = st.columns(4)
 
-
 with col1:
-
     st.markdown(f"""
-    <div style="text-align: center">
-        <p style="margin-bottom: 0; color: #888; font-size: 14px;">
-            Total KOLs
-        </p>
-        <p style="font-size: 24px; font-weight: bold; margin-top: 0;">
-            {total_kols:,}
-        </p>
+    <div class="kpi-card">
+        <p class="kpi-label">Total KOLs</p>
+        <p class="kpi-value">{total_kols:,}</p>
     </div>
     """, unsafe_allow_html=True)
-
 
 with col2:
-
     st.markdown(f"""
-    <div style="text-align: center">
-        <p style="margin-bottom: 0; color: #888; font-size: 14px;">
-            Total Posts
-        </p>
-        <p style="font-size: 24px; font-weight: bold; margin-top: 0;">
-            {total_posts:,}
-        </p>
+    <div class="kpi-card">
+        <p class="kpi-label">Total Posts</p>
+        <p class="kpi-value">{total_posts:,}</p>
     </div>
     """, unsafe_allow_html=True)
-
 
 with col3:
-
     st.markdown(f"""
-    <div style="text-align: center">
-        <p style="margin-bottom: 0; color: #888; font-size: 14px;">
-            ER
-        </p>
-        <p style="font-size: 24px; font-weight: bold; margin-top: 0;">
-            {format_percent(engagement_rate)}
-        </p>
+    <div class="kpi-card">
+        <p class="kpi-label">ER</p>
+        <p class="kpi-value">{format_percent(engagement_rate)}</p>
     </div>
     """, unsafe_allow_html=True)
 
-
 with col4:
-
     st.markdown(f"""
-    <div style="text-align: center">
-        <p style="margin-bottom: 0; color: #888; font-size: 14px;">
-            Avg CPV
-        </p>
-        <p style="font-size: 24px; font-weight: bold; margin-top: 0;">
-            {format_currency_short(avg_cpv)}
-        </p>
+    <div class="kpi-card">
+        <p class="kpi-label">Avg CPV</p>
+        <p class="kpi-value">{format_currency_short(avg_cpv)}</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -1846,7 +1851,7 @@ if kol_search or search_button:
 
                         desired_order = [
                             'KOL_Name',
-                            'Category',
+                            'Product',
                             'Brands',
                             'Tier',
                             'Objective',
@@ -1882,7 +1887,8 @@ if kol_search or search_button:
                             'Followers_Number',
                             'ER_Views',
                             'Engagement',
-                            'Link_Post'
+                            'Link_Post',
+                            'Category'
                         ]
 
 
@@ -2165,6 +2171,12 @@ if kol_search:
 
     if st.button("🔄 Clear Search"):
         st.rerun()
+
+
+# ============================================================
+# KEY INSIGHTS (FUTURE PROJECT)
+# ============================================================
+section_header_with_divider("Key Insights")
 
 
 # ============================================================
