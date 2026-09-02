@@ -92,7 +92,7 @@ elif not has_product and len(df.columns) > 0:
     first_col = df.columns[0]
     # If first column has text values (not numeric, not KOL_Name, not Month)
     if (df[first_col].dtype == 'object' and 
-        first_col not in ['KOL_Name', 'Platform', 'Tier', 'Brands', 'Sub_Brands', 'Objective', 'Link_Post', 'Month']):
+        first_col not in ['KOL_Name', 'Platform', 'Tier', 'Brands', 'Sub_Brands', 'Objective', 'Link_Post', 'Month', 'Category']):
         df = df.rename(columns={first_col: 'Product'})
 
 # Clean Product values
@@ -130,6 +130,11 @@ if 'Platform' in df.columns:
 if 'Tier' in df.columns:
     df['Tier'] = df['Tier'].astype(str).str.strip()
     df['Tier'] = df['Tier'].str.capitalize()
+
+
+# ============ CLEAN CATEGORY NAMES ============
+if 'Category' in df.columns:
+    df['Category'] = df['Category'].astype(str).str.strip()
 
 
 # ============ CLEAN SUB-BRANDS AND BRANDS ============
@@ -368,7 +373,7 @@ with st.sidebar:
         )
 
         selected_products = st.multiselect(
-            "Select Categories",
+            "Select Products",
             options=product_options,
             default=['Select All']
         )
@@ -1478,6 +1483,366 @@ else:
 
 
 # ============================================================
+# SPEND BY CATEGORY - HORIZONTAL STACKED BAR
+# ============================================================
+st.markdown("<br>", unsafe_allow_html=True)
+
+st.markdown(f"""
+<div style="text-align: center; font-size: 18px; font-weight: bold; color: {DARK_BLUE}; margin-bottom: 10px;">
+    Spend by Category (Monthly)
+</div>
+""", unsafe_allow_html=True)
+
+
+if (
+    'Category' in filtered_df.columns
+    and 'Month' in filtered_df.columns
+):
+
+    category_month_data = (
+        filtered_df
+        .groupby(
+            ['Month', 'Category'],
+            as_index=False
+        )['Actual_Spends_IDR']
+        .sum()
+    )
+
+
+    # ========================================================
+    # CALCULATE MONTHLY TOTAL
+    # ========================================================
+    month_totals = (
+        category_month_data
+        .groupby('Month', as_index=False)['Actual_Spends_IDR']
+        .sum()
+    )
+
+    month_totals.columns = [
+        'Month',
+        'Total_Spend'
+    ]
+
+
+    category_month_data = category_month_data.merge(
+        month_totals,
+        on='Month'
+    )
+
+
+    # ========================================================
+    # CALCULATE PERCENTAGE
+    # ========================================================
+    category_month_data['Percentage'] = (
+        category_month_data['Actual_Spends_IDR']
+        / category_month_data['Total_Spend']
+        * 100
+    )
+
+    category_month_data['Percentage'] = (
+        category_month_data['Percentage']
+        .round(0)
+    )
+
+    category_month_data['Percentage_Label'] = (
+        category_month_data['Percentage']
+        .astype(int)
+        .astype(str)
+        + '%'
+    )
+
+
+    # ========================================================
+    # MONTH ORDER
+    # ========================================================
+    category_month_data['Month_Str'] = (
+        category_month_data['Month']
+        .dt.strftime('%b')
+    )
+
+    month_order = sorted(
+        category_month_data['Month'].unique()
+    )
+
+    month_order_str = [
+        m.strftime('%b')
+        for m in month_order
+    ]
+
+
+    if not category_month_data.empty:
+
+        # ====================================================
+        # CATEGORY ORDER
+        # ====================================================
+        preferred_category_order = [
+            'Lifestyle',
+            'Family',
+            'Health',
+            'Fashion',
+            'Beauty',
+            'Food',
+            'Travel',
+            'Fitness',
+            'Entertainment',
+            'Education',
+            'Other'
+        ]
+
+        existing_categories = (
+            category_month_data['Category']
+            .dropna()
+            .unique()
+            .tolist()
+        )
+
+        category_order = [
+            c
+            for c in preferred_category_order
+            if c in existing_categories
+        ]
+
+        for c in existing_categories:
+            if c not in category_order:
+                category_order.append(c)
+
+
+        # ====================================================
+        # FORCE CONSISTENT CATEGORY ORDER
+        # ====================================================
+        category_month_data['Category'] = pd.Categorical(
+            category_month_data['Category'],
+            categories=category_order,
+            ordered=True
+        )
+
+        category_month_data = (
+            category_month_data
+            .sort_values(
+                ['Month', 'Category']
+            )
+            .reset_index(drop=True)
+        )
+
+
+        # ====================================================
+        # CALCULATE EXACT SEGMENT POSITIONS
+        # ====================================================
+        category_month_data['Segment_End'] = (
+            category_month_data
+            .groupby(
+                'Month',
+                observed=True
+            )['Actual_Spends_IDR']
+            .cumsum()
+        )
+
+        category_month_data['Segment_Start'] = (
+            category_month_data['Segment_End']
+            - category_month_data['Actual_Spends_IDR']
+        )
+
+        category_month_data['Label_Position'] = (
+            category_month_data['Segment_Start']
+            + (
+                category_month_data['Actual_Spends_IDR']
+                / 2
+            )
+        )
+
+        category_month_data['Segment_Width'] = (
+            category_month_data['Segment_End']
+            - category_month_data['Segment_Start']
+        )
+
+
+        # ====================================================
+        # COLORS
+        # ====================================================
+        category_colors = [
+            DARK_BLUE,
+            LIGHT_BLUE,
+            '#6ba3d9',
+            '#a8c8e8',
+            '#d4e4f0',
+            '#7fb3d9',
+            '#99c2e0',
+            '#b3d1e0',
+            '#cce0ed',
+            '#e6f0f5'
+        ]
+
+        while len(category_colors) < len(category_order):
+            category_colors.append('#e8e8e8')
+
+
+        # ====================================================
+        # BAR CHART
+        # ====================================================
+        # NOTE: We plot explicit Segment_Start -> Segment_End
+        # positions (computed above) instead of letting Altair
+        # auto-stack via stack='zero'. Altair's own stacking
+        # order for a :N field follows alphabetical sort, which
+        # does NOT match the pandas categorical order used to
+        # compute our label positions -- that mismatch is what
+        # caused labels to land in the wrong segment. Using
+        # x/x2 directly guarantees bars and labels always agree.
+        bars = alt.Chart(
+            category_month_data
+        ).mark_bar(
+            cornerRadiusTopRight=2,
+            cornerRadiusBottomRight=2
+        ).encode(
+
+            y=alt.Y(
+                'Month_Str:O',
+                title=None,
+                sort=month_order_str,
+                axis=alt.Axis(
+                    labels=True,
+                    labelAngle=0
+                )
+            ),
+
+            x=alt.X(
+                'Segment_Start:Q',
+                title=None,
+                axis=alt.Axis(
+                    labels=False
+                )
+            ),
+
+            x2=alt.X2(
+                'Segment_End:Q'
+            ),
+
+            color=alt.Color(
+                'Category:N',
+                legend=alt.Legend(
+                    title=None,
+                    orient='right',
+                    labelFontSize=11,
+                    labelLimit=150,
+                    labelPadding=10,
+                    rowPadding=5
+                ),
+                scale=alt.Scale(
+                    domain=category_order,
+                    range=category_colors
+                )
+            ),
+
+            tooltip=[
+                alt.Tooltip(
+                    'Month_Str:O',
+                    title='Month'
+                ),
+                alt.Tooltip(
+                    'Category:N',
+                    title='Category'
+                ),
+                alt.Tooltip(
+                    'Actual_Spends_IDR:Q',
+                    format=',.0f',
+                    title='Spend'
+                ),
+                alt.Tooltip(
+                    'Percentage:Q',
+                    format='.0f',
+                    title='%'
+                )
+            ]
+        )
+
+
+        # ====================================================
+        # LABELS - ONLY SHOW WHEN THE TEXT ACTUALLY FITS
+        # Estimate each segment's rendered pixel width vs. the
+        # estimated pixel width of its label text. If the label
+        # would overflow the segment, drop it (still visible on
+        # hover via tooltip).
+        # ====================================================
+        CHART_WIDTH_PX = 700    # must match the chart's actual width below
+        FONT_SIZE = 10
+        AVG_CHAR_WIDTH = FONT_SIZE * 0.62   # approx width of a bold char at this font size
+        LABEL_PADDING_PX = 6                # buffer so text isn't flush against segment edges
+
+        max_total = category_month_data['Total_Spend'].max()
+        px_per_unit = CHART_WIDTH_PX / max_total
+
+        category_month_data['Segment_Width_px'] = (
+            category_month_data['Segment_Width'] * px_per_unit
+        )
+
+        category_month_data['Label_Width_px'] = (
+            category_month_data['Percentage_Label'].str.len() * AVG_CHAR_WIDTH
+            + LABEL_PADDING_PX
+        )
+
+        text_data = category_month_data[
+            category_month_data['Segment_Width_px'] >= category_month_data['Label_Width_px']
+        ].copy()
+
+        text = alt.Chart(
+            text_data
+        ).mark_text(
+            align='center',
+            baseline='middle',
+            fontSize=FONT_SIZE,
+            fontWeight='bold',
+            color='white'
+        ).encode(
+
+            y=alt.Y(
+                'Month_Str:O',
+                sort=month_order_str
+            ),
+
+            x=alt.X(
+                'Label_Position:Q'
+            ),
+
+            text=alt.Text(
+                'Percentage_Label:N'
+            )
+        )
+
+
+        # ====================================================
+        # COMBINE CHART
+        # ====================================================
+        chart = alt.layer(
+            bars,
+            text
+        ).properties(
+            width=CHART_WIDTH_PX,   # fixed width so the fit math above stays accurate
+            height=300
+        ).configure_view(
+            strokeWidth=0
+        ).configure_axis(
+            labelFontSize=12,
+            labelColor='#666',
+            grid=False
+        )
+
+
+        st.altair_chart(
+            chart,
+            use_container_width=False
+        )
+
+    else:
+
+        st.info(
+            "No data available for Spend by Category"
+        )
+
+else:
+
+    st.info(
+        "Data not available for category chart"
+    )
+# ============================================================
 # TOP PERFORMING KOLS
 # ============================================================
 section_header_with_divider(
@@ -1660,7 +2025,7 @@ if 'KOL_Name' in filtered_df.columns:
 # KOL SEARCH FEATURE
 # ============================================================
 section_header_with_divider(
-    "🔍 Search KOL Performance"
+    "Search KOL Performance"
 )
 
 
@@ -1851,6 +2216,7 @@ if kol_search or search_button:
 
                         desired_order = [
                             'KOL_Name',
+                            'Category',
                             'Product',
                             'Brands',
                             'Tier',
@@ -1887,8 +2253,7 @@ if kol_search or search_button:
                             'Followers_Number',
                             'ER_Views',
                             'Engagement',
-                            'Link_Post',
-                            'Category'
+                            'Link_Post'
                         ]
 
 
