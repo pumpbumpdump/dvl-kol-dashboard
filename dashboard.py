@@ -360,7 +360,7 @@ with st.sidebar:
             ]
 
 
-    # ============ FILTER BY PRODUCT ============
+    # ============ FILTER BY CATEGORY (sourced from Product column) ============
     if 'Product' in df.columns:
 
         product_options = [
@@ -373,7 +373,7 @@ with st.sidebar:
         )
 
         selected_products = st.multiselect(
-            "Select Products",
+            "Select Category",
             options=product_options,
             default=['Select All']
         )
