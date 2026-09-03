@@ -44,15 +44,15 @@ def load_data():
         # web-edit re-saves), which otherwise silently corrupts the FIRST
         # column name only (e.g. "Product" becomes "\ufeffProduct"),
         # making that one filter vanish while all others work fine.
-        df = pd.read_csv('Union Data KOL.csv', sep=';', encoding='utf-8-sig')
+        df = pd.read_csv('KOL Data Raw Union.csv', sep=';', encoding='utf-8-sig')
         return df
     except:
         try:
-            df = pd.read_csv('Union Data KOL.csv', sep=';', encoding='latin-1')
+            df = pd.read_csv('KOL Data Raw Union.csv', sep=';', encoding='latin-1')
             return df
         except:
             st.error("❌ Could not load the file")
-            st.info("Make sure 'Union Data KOL.csv' is in the folder")
+            st.info("Make sure 'KOL Data Raw Union.csv' is in the folder")
             return pd.DataFrame()
 
 
