@@ -44,15 +44,15 @@ def load_data():
         # web-edit re-saves), which otherwise silently corrupts the FIRST
         # column name only (e.g. "Product" becomes "\ufeffProduct"),
         # making that one filter vanish while all others work fine.
-        df = pd.read_csv('KOL Data Raw Union.csv', sep=';', encoding='utf-8-sig')
+        df = pd.read_csv('KOL Tracker Data.csv', sep=';', encoding='utf-8-sig')
         return df
     except:
         try:
-            df = pd.read_csv('KOL Data Raw Union.csv', sep=';', encoding='latin-1')
+            df = pd.read_csv('KOL Tracker Data.csv', sep=';', encoding='latin-1')
             return df
         except:
             st.error("❌ Could not load the file")
-            st.info("Make sure 'KOL Data Raw Union.csv' is in the folder")
+            st.info("Make sure 'KOL Tracker Data.csv' is in the folder")
             return pd.DataFrame()
 
 
@@ -78,6 +78,18 @@ df.columns = [
     .replace(',', '_')
     for col in df.columns
 ]
+
+
+# ============ FIX: HANDLE DUPLICATE 'Category' COLUMNS ============
+# The raw file has TWO columns both literally named "Category":
+#   1) the first one holds product-type values (e.g. "Health Supplement")
+#      -- this is what should power the "Select Category" filter.
+#   2) the second one holds content-category values (e.g. "Lifestyle", "Health")
+#      -- pandas auto-renames this duplicate to "Category.1" on load, since
+#      two columns can't share an exact name.
+# Swap them back to sensible, distinct names: first -> Product, "Category.1" -> Category.
+if 'Category.1' in df.columns:
+    df = df.rename(columns={'Category': 'Product', 'Category.1': 'Category'})
 
 
 # ============ FIX: PROPERLY HANDLE PRODUCT ============
@@ -150,7 +162,14 @@ if 'Brands' in df.columns:
 
 
 # ============ CONVERT DATA TYPES ============
-numeric_cols = [
+# Currency/count fields: some Excel exports (especially after merging
+# multiple sheets) use a period as the thousands separator (e.g.
+# "3.475.000"), not just a comma. If we only strip commas, values like
+# that fail to parse and silently become NaN -- which is what was making
+# Actual_Spends_IDR (and therefore Spend/CPV) collapse to 0. Strip BOTH
+# separators here since these are whole-rupiah / whole-count fields with
+# no decimals to preserve.
+currency_count_cols = [
     'Followers_Number',
     'Actual_Spends_IDR',
     'Reach',
@@ -158,13 +177,35 @@ numeric_cols = [
     'Likes',
     'Comments',
     'Share',
-    'ER',
-    'ER_Views',
-    'VR',
     'CPV_Rp'
 ]
 
-for col in numeric_cols:
+for col in currency_count_cols:
+    if col in df.columns:
+        df[col] = (
+            df[col]
+            .astype(str)
+            .str.replace('Rp', '', regex=False)
+            .str.replace('%', '', regex=False)
+            .str.replace('.', '', regex=False)
+            .str.replace(',', '', regex=False)
+            .str.strip()
+        )
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+
+
+# Percent fields: cleaning left exactly as before (comma stripped, not
+# converted to a decimal point). This preserves the existing ~100x scale
+# these values end up at, which is already compensated for everywhere
+# ER/VR/ER_Views are displayed elsewhere in this file (KPI card, Top 10
+# table, KOL search). Changing this here would silently break those.
+percent_cols = [
+    'ER',
+    'ER_Views',
+    'VR'
+]
+
+for col in percent_cols:
     if col in df.columns:
         df[col] = (
             df[col]
@@ -921,6 +962,7 @@ if (
     platform_month_data['Percentage'] = (
         platform_month_data['Percentage']
         .round(0)  # ROUND TO INTEGER
+        .fillna(0)  # guard against NaN from a 0-total group (0/0)
     )
 
     platform_month_data['Percentage_Label'] = (
@@ -1022,6 +1064,11 @@ if (
             )
         )
 
+        platform_month_data['Segment_Width'] = (
+            platform_month_data['Segment_End']
+            - platform_month_data['Segment_Start']
+        )
+
 
         # ====================================================
         # COLORS
@@ -1041,6 +1088,11 @@ if (
         # ====================================================
         # BAR CHART
         # ====================================================
+        # NOTE: Use explicit x/x2 (Segment_Start -> Segment_End)
+        # instead of stack='zero' so the bars always match the
+        # pandas categorical order used to compute label
+        # positions (Altair's own :N stacking follows
+        # alphabetical order, which can mismatch).
         bars = alt.Chart(
             platform_month_data
         ).mark_bar(
@@ -1059,12 +1111,15 @@ if (
             ),
 
             x=alt.X(
-                'Actual_Spends_IDR:Q',
+                'Segment_Start:Q',
                 title=None,
-                stack='zero',
                 axis=alt.Axis(
                     labels=False
                 )
+            ),
+
+            x2=alt.X2(
+                'Segment_End:Q'
             ),
 
             color=alt.Color(
@@ -1081,11 +1136,6 @@ if (
                     domain=platform_order,
                     range=platform_colors
                 )
-            ),
-
-            order=alt.Order(
-                'Platform:N',
-                sort='ascending'
             ),
 
             tooltip=[
@@ -1112,12 +1162,31 @@ if (
 
 
         # ====================================================
-        # LABELS - FILTER DATA TO ONLY SHOW LABELS FOR >= 5%
-        # AND EXCLUDE JUL FROM SHOWING LABELS
+        # LABELS - ONLY SHOW WHEN THE TEXT ACTUALLY FITS
+        # Estimate each segment's rendered pixel width vs. the
+        # estimated pixel width of its label text. If the label
+        # would overflow the segment, drop it (still visible on
+        # hover via tooltip).
         # ====================================================
+        CHART_WIDTH_PX = 700    # must match the chart's actual width below
+        FONT_SIZE = 10
+        AVG_CHAR_WIDTH = FONT_SIZE * 0.62   # approx width of a bold char at this font size
+        LABEL_PADDING_PX = 6                # buffer so text isn't flush against segment edges
+
+        max_total = platform_month_data['Total_Spend'].max()
+        px_per_unit = CHART_WIDTH_PX / max_total
+
+        platform_month_data['Segment_Width_px'] = (
+            platform_month_data['Segment_Width'] * px_per_unit
+        )
+
+        platform_month_data['Label_Width_px'] = (
+            platform_month_data['Percentage_Label'].str.len() * AVG_CHAR_WIDTH
+            + LABEL_PADDING_PX
+        )
+
         text_data = platform_month_data[
-            (platform_month_data['Percentage'] >= 5) & 
-            (platform_month_data['Month_Str'] != 'Jul')
+            platform_month_data['Segment_Width_px'] >= platform_month_data['Label_Width_px']
         ].copy()
 
         text = alt.Chart(
@@ -1125,7 +1194,7 @@ if (
         ).mark_text(
             align='center',
             baseline='middle',
-            fontSize=10,
+            fontSize=FONT_SIZE,
             fontWeight='bold',
             color='white'
         ).encode(
@@ -1152,7 +1221,7 @@ if (
             bars,
             text
         ).properties(
-            width='container',
+            width=CHART_WIDTH_PX,   # fixed width so the fit math above stays accurate
             height=300
         ).configure_view(
             strokeWidth=0
@@ -1165,7 +1234,7 @@ if (
 
         st.altair_chart(
             chart,
-            use_container_width=True
+            use_container_width=False
         )
 
     else:
@@ -1241,6 +1310,7 @@ if (
     tier_month_data['Percentage'] = (
         tier_month_data['Percentage']
         .round(0)  # ROUND TO INTEGER
+        .fillna(0)  # guard against NaN from a 0-total group (0/0)
     )
 
     tier_month_data['Percentage_Label'] = (
@@ -1327,6 +1397,11 @@ if (
             )
         )
 
+        tier_month_data['Segment_Width'] = (
+            tier_month_data['Segment_End']
+            - tier_month_data['Segment_Start']
+        )
+
 
         # ====================================================
         # COLORS
@@ -1346,6 +1421,11 @@ if (
         # ====================================================
         # BAR CHART
         # ====================================================
+        # NOTE: Use explicit x/x2 (Segment_Start -> Segment_End)
+        # instead of stack='zero' so the bars always match the
+        # pandas categorical order used to compute label
+        # positions (Altair's own :N stacking follows
+        # alphabetical order, which can mismatch).
         bars = alt.Chart(
             tier_month_data
         ).mark_bar(
@@ -1364,12 +1444,15 @@ if (
             ),
 
             x=alt.X(
-                'Actual_Spends_IDR:Q',
+                'Segment_Start:Q',
                 title=None,
-                stack='zero',
                 axis=alt.Axis(
                     labels=False
                 )
+            ),
+
+            x2=alt.X2(
+                'Segment_End:Q'
             ),
 
             color=alt.Color(
@@ -1386,11 +1469,6 @@ if (
                     domain=tier_order,
                     range=tier_colors
                 )
-            ),
-
-            order=alt.Order(
-                'Tier:N',
-                sort='ascending'
             ),
 
             tooltip=[
@@ -1417,12 +1495,31 @@ if (
 
 
         # ====================================================
-        # LABELS - FILTER DATA TO ONLY SHOW LABELS FOR >= 5%
-        # AND EXCLUDE JUL FROM SHOWING LABELS
+        # LABELS - ONLY SHOW WHEN THE TEXT ACTUALLY FITS
+        # Estimate each segment's rendered pixel width vs. the
+        # estimated pixel width of its label text. If the label
+        # would overflow the segment, drop it (still visible on
+        # hover via tooltip).
         # ====================================================
+        CHART_WIDTH_PX = 700    # must match the chart's actual width below
+        FONT_SIZE = 10
+        AVG_CHAR_WIDTH = FONT_SIZE * 0.62   # approx width of a bold char at this font size
+        LABEL_PADDING_PX = 6                # buffer so text isn't flush against segment edges
+
+        max_total = tier_month_data['Total_Spend'].max()
+        px_per_unit = CHART_WIDTH_PX / max_total
+
+        tier_month_data['Segment_Width_px'] = (
+            tier_month_data['Segment_Width'] * px_per_unit
+        )
+
+        tier_month_data['Label_Width_px'] = (
+            tier_month_data['Percentage_Label'].str.len() * AVG_CHAR_WIDTH
+            + LABEL_PADDING_PX
+        )
+
         text_data = tier_month_data[
-            (tier_month_data['Percentage'] >= 5) & 
-            (tier_month_data['Month_Str'] != 'Jul')
+            tier_month_data['Segment_Width_px'] >= tier_month_data['Label_Width_px']
         ].copy()
 
         text = alt.Chart(
@@ -1430,7 +1527,7 @@ if (
         ).mark_text(
             align='center',
             baseline='middle',
-            fontSize=10,
+            fontSize=FONT_SIZE,
             fontWeight='bold',
             color='white'
         ).encode(
@@ -1457,7 +1554,7 @@ if (
             bars,
             text
         ).properties(
-            width='container',
+            width=CHART_WIDTH_PX,   # fixed width so the fit math above stays accurate
             height=300
         ).configure_view(
             strokeWidth=0
@@ -1470,7 +1567,7 @@ if (
 
         st.altair_chart(
             chart,
-            use_container_width=True
+            use_container_width=False
         )
 
     else:
@@ -1546,6 +1643,7 @@ if (
     category_month_data['Percentage'] = (
         category_month_data['Percentage']
         .round(0)
+        .fillna(0)  # guard against NaN from a 0-total group (0/0)
     )
 
     category_month_data['Percentage_Label'] = (
@@ -1860,9 +1958,7 @@ if 'KOL_Name' in filtered_df.columns:
         filtered_df
         .groupby('KOL_Name')
         .agg({
-            'Likes': 'sum',
-            'Comments': 'sum',
-            'Share': 'sum',
+            'ER': 'mean',
             'Followers_Number': 'max',
             'Actual_Spends_IDR': 'sum',
             'Tier': 'first',
@@ -1872,17 +1968,8 @@ if 'KOL_Name' in filtered_df.columns:
     )
 
 
-    kol_agg['ER_Per_Follower'] = (
-        (
-            kol_agg['Likes']
-            + kol_agg['Comments']
-            + kol_agg['Share']
-        )
-        / kol_agg['Followers_Number']
-    )
-
-    kol_agg['ER_Per_Follower'] = (
-        kol_agg['ER_Per_Follower']
+    kol_agg['ER'] = (
+        kol_agg['ER']
         .replace(
             [np.inf, -np.inf],
             np.nan
@@ -1892,7 +1979,7 @@ if 'KOL_Name' in filtered_df.columns:
 
 
     kol_agg = kol_agg.sort_values(
-        'ER_Per_Follower',
+        'ER',
         ascending=False
     )
 
@@ -1908,7 +1995,7 @@ if 'KOL_Name' in filtered_df.columns:
     top_kols['KOL'] = top_kols['KOL_Name']
 
     top_kols['ER'] = (
-        top_kols['ER_Per_Follower']
+        (top_kols['ER'] / 100)
         .apply(format_percent)
     )
 
