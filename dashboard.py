@@ -43,7 +43,6 @@ def load_data():
         # utf-8-sig strips a UTF-8 BOM if present (common after Excel/GitHub
         # web-edit re-saves), which otherwise silently corrupts the FIRST
         # column name only (e.g. "Product" becomes "\ufeffProduct"),
-        # making that one filter vanish while all others work fine.
         df = pd.read_csv('KOL Tracker Data.csv', sep=';', encoding='utf-8-sig')
         return df
     except:
