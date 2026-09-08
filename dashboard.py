@@ -4,6 +4,7 @@ import numpy as np
 import altair as alt
 from datetime import datetime
 import re
+import requests
 
 # ============ PAGE CONFIG ============
 st.set_page_config(
@@ -624,6 +625,95 @@ def section_header_no_divider(title):
     """, unsafe_allow_html=True)
 
 
+# ============ LINK PREVIEW: THUMBNAIL FETCH + HOVER CARD ============
+# Fetches a video thumbnail for a social post link and renders a small
+# hover-preview card next to the "View Post" link. Only TikTok exposes a
+# public oEmbed endpoint that returns a thumbnail_url without needing an
+# approved app / access token, so Instagram and X links fall back to a
+# plain link with no preview image.
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_video_thumbnail(url):
+    """Return a preview thumbnail URL for a social post link, where the platform allows it."""
+
+    if pd.isna(url) or not str(url).strip():
+        return None
+
+    url = str(url).strip()
+
+    try:
+        if 'tiktok.com' in url:
+            resp = requests.get(
+                'https://www.tiktok.com/oembed',
+                params={'url': url},
+                timeout=3
+            )
+            if resp.ok:
+                return resp.json().get('thumbnail_url')
+        # Instagram: oEmbed requires a Meta-approved app + access token,
+        # not available publicly, so no thumbnail is fetched here.
+        # X/Twitter: oEmbed returns embed HTML rather than an image URL,
+        # so it can't be used for a simple <img> preview either.
+    except Exception:
+        return None
+
+    return None
+
+
+# CSS for the hover-preview card. Injected once; both the Top 10 table
+# and the KOL Search results reuse the same .link-preview-wrap class.
+st.markdown("""
+<style>
+.link-preview-wrap {
+    position: relative;
+    display: inline-block;
+}
+.link-preview-wrap .preview-img {
+    display: none;
+    position: absolute;
+    z-index: 999;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 6px;
+    width: 160px;
+    border-radius: 8px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+    border: 2px solid #fff;
+}
+.link-preview-wrap:hover .preview-img {
+    display: block;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+def make_clickable_with_preview(link):
+    """Clickable 'View Post' link with a hover thumbnail (TikTok only)."""
+
+    if pd.isna(link) or link == '':
+        return ''
+
+    thumb = get_video_thumbnail(link)
+
+    link_html = (
+        f'<a href="{link}" target="_blank" '
+        f'style="color: {DARK_BLUE}; '
+        f'text-decoration: none; '
+        f'font-weight: bold;">'
+        f'🔗 View Post</a>'
+    )
+
+    if thumb:
+        return (
+            f'<span class="link-preview-wrap">'
+            f'{link_html}'
+            f'<img class="preview-img" src="{thumb}" referrerpolicy="no-referrer">'
+            f'</span>'
+        )
+
+    return link_html
+
+
 # ============ CALCULATE CPV ============
 if (
     'Actual_Spends_IDR' in filtered_df.columns
@@ -725,8 +815,10 @@ else:
 
 
 avg_cpv = (
-    filtered_df['CPV_Calculated'].mean()
-    if 'CPV_Calculated' in filtered_df.columns
+    filtered_df['Actual_Spends_IDR'].sum() / filtered_df['Views'].sum()
+    if 'Actual_Spends_IDR' in filtered_df.columns
+    and 'Views' in filtered_df.columns
+    and filtered_df['Views'].sum() > 0
     else 0
 )
 
@@ -2001,34 +2093,18 @@ if 'KOL_Name' in filtered_df.columns:
 
     top_kols['Cost'] = (
         top_kols['Actual_Spends_IDR']
-        .apply(format_currency)
+        .apply(lambda x: f"Rp {x:,.0f}" if pd.notna(x) else "Rp 0")
     )
 
 
     # ========================================================
-    # MAKE LINK_POST CLICKABLE
+    # MAKE LINK_POST CLICKABLE WITH HOVER THUMBNAIL PREVIEW
     # ========================================================
     if 'Link_Post' in top_kols.columns:
 
-        def make_clickable(link):
-
-            if pd.isna(link) or link == '':
-                return ''
-
-            display_text = '🔗 View Post'
-
-            return (
-                f'<a href="{link}" target="_blank" '
-                f'style="color: {DARK_BLUE}; '
-                f'text-decoration: none; '
-                f'font-weight: bold;">'
-                f'{display_text}</a>'
-            )
-
-
         top_kols['Link_Post'] = (
             top_kols['Link_Post']
-            .apply(make_clickable)
+            .apply(make_clickable_with_preview)
         )
 
         display_df = top_kols[
@@ -2428,30 +2504,13 @@ if kol_search or search_button:
 
 
                         # ====================================================
-                        # CLICKABLE LINK
+                        # CLICKABLE LINK WITH HOVER THUMBNAIL PREVIEW
                         # ====================================================
                         if 'Link_Post' in display_df.columns:
 
-                            def make_clickable_search(link):
-
-                                if pd.isna(link) or link == '':
-                                    return ''
-
-                                display_text = '🔗 View Post'
-
-                                return (
-                                    f'<a href="{link}" '
-                                    f'target="_blank" '
-                                    f'style="color: {DARK_BLUE}; '
-                                    f'text-decoration: none; '
-                                    f'font-weight: bold;">'
-                                    f'{display_text}</a>'
-                                )
-
-
                             display_df['Link_Post'] = (
                                 display_df['Link_Post']
-                                .apply(make_clickable_search)
+                                .apply(make_clickable_with_preview)
                             )
 
 
@@ -2710,6 +2769,11 @@ if 'CPV_Calculated' in display_full_df.columns:
 # ============================================================
 # CONVERT LINK_POST TO CLICKABLE HYPERLINK
 # ============================================================
+# NOTE: The Full Data Table intentionally keeps the plain
+# (non-thumbnail) link renderer. Fetching a thumbnail per row
+# here could mean requests for hundreds of posts on every page
+# load; the hover-preview version is reserved for the much
+# smaller Top 10 table and KOL Search results above.
 if 'Link_Post' in display_full_df.columns:
 
     def make_clickable(link):
