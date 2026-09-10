@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ============ CUSTOM COLORS ===========
+# ============ CUSTOM COLORS ============
 DARK_BLUE = "#1a3a5c"
 LIGHT_BLUE = "#4a90d9"
 
@@ -944,7 +944,7 @@ with col4:
     st.markdown(f"""
     <div class="kpi-card">
         <p class="kpi-label">Avg CPV</p>
-        <p class="kpi-value">{format_currency_short(avg_cpv)}</p>
+        <p class="kpi-value">Rp {round(avg_cpv):,}</p>
     </div>
     """, unsafe_allow_html=True)
 
