@@ -13,7 +13,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# ============ CUSTOM COLORS ============
+# ============ CUSTOM COLORS ===========
 DARK_BLUE = "#1a3a5c"
 LIGHT_BLUE = "#4a90d9"
 
