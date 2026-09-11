@@ -790,6 +790,13 @@ if 'KOL_Name' in filtered_df.columns:
         regex=False
     )
 
+    # Lowercase before counting uniques: KOL handles are case-insensitive
+    # on the actual platforms (e.g. "Ninitata" and "ninitata" are the same
+    # account), and Excel's UNIQUE() already treats them as one entry by
+    # default. Without this, pandas' case-sensitive nunique() overcounts
+    # any KOL whose name appears with inconsistent capitalization.
+    kol_cleaned = kol_cleaned.str.lower()
+
     total_kols = kol_cleaned.nunique()
 
 else:
