@@ -799,17 +799,12 @@ else:
 total_posts = len(filtered_df)
 
 
-# ============ FIXED ER CALCULATION ============
-if 'ER' in filtered_df.columns:
-
-    er_values = filtered_df['ER'].dropna()
-
-    engagement_rate = (
-        er_values.mean() / 100
-        if len(er_values) > 0
-        else 0
-    )
-
+# ============ FIXED ER CALCULATION (sum of engagement / sum of followers) ============
+if (
+    'Followers_Number' in filtered_df.columns
+    and filtered_df['Followers_Number'].sum() > 0
+):
+    engagement_rate = total_engagement / filtered_df['Followers_Number'].sum()
 else:
     engagement_rate = 0
 
