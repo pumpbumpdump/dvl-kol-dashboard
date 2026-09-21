@@ -223,14 +223,15 @@ if 'Month' in df.columns:
     df['Month'] = df['Month'].astype(str).str.strip()
 
     valid_months = [
-        'Jan-26',
-        'Feb-26',
-        'Mar-26',
-        'Apr-26',
-        'May-26',
-        'Jun-26',
-        'Jul-26'
-    ]
+    'Jan-26',
+    'Feb-26',
+    'Mar-26',
+    'Apr-26',
+    'May-26',
+    'Jun-26',
+    'Jul-26',
+    'Aug-26'
+]
 
     df = df[df['Month'].isin(valid_months)]
 
