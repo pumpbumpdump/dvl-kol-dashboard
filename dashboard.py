@@ -13,126 +13,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# ============ FORCE LIGHT MODE (fallback if config.toml is not picked up) ============
-st.markdown("""
-<style>
-:root { color-scheme: light only; }
-
-.stApp,
-[data-testid="stAppViewContainer"],
-[data-testid="stHeader"],
-[data-testid="stMain"] {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-}
-
-[data-testid="stSidebar"],
-[data-testid="stSidebar"] > div {
-    background-color: #f0f4f8 !important;
-}
-
-.stApp p, .stApp label, .stApp span, .stApp li,
-.stApp h1, .stApp h2, .stApp h3, .stApp h4,
-[data-testid="stMetricValue"], [data-testid="stMetricLabel"],
-[data-testid="stMarkdownContainer"] {
-    color: #000000;
-}
-
-/* Inputs, dropdowns and multiselect */
-[data-baseweb="input"], [data-baseweb="input"] input,
-[data-baseweb="select"] > div,
-[data-baseweb="popover"] div, [data-baseweb="menu"],
-[data-baseweb="menu"] li {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-}
-
-
-/* Widget labels, sidebar text, headings */
-[data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] p,
-[data-testid="stSidebar"] *, [data-testid="stExpander"] summary,
-[data-testid="stExpander"] summary * , [data-testid="stCaptionContainer"],
-[data-testid="stHeading"] * {
-    color: #1a3a5c !important;
-}
-[data-testid="stSidebar"] [data-baseweb="select"] * { color: #000000 !important; }
-
-/* Multiselect tags */
-[data-baseweb="tag"] { background-color: #1a3a5c !important; }
-[data-baseweb="tag"] * { color: #ffffff !important; }
-
-/* Expanders and HTML tables */
-[data-testid="stExpander"] { background-color: #ffffff !important; border-color: #d0d7e2 !important; }
-table, th, td { color: #000000 !important; }
-table { background-color: #ffffff !important; }
-
-/* Streamlit's own charts/iframes */
-[data-testid="stVegaLiteChart"], [data-testid="stArrowVegaLiteChart"], .vega-embed {
-    background-color: #ffffff !important;
-}
-
-
-/* ===== Multiselect / dropdown boxes: light box, dark-blue tags ===== */
-[data-testid="stSidebar"] [data-testid="stMultiSelect"] [data-baseweb="select"],
-[data-testid="stSidebar"] [data-testid="stMultiSelect"] [data-baseweb="select"] div,
-[data-testid="stSidebar"] [data-testid="stMultiSelect"] [data-baseweb="select"] input,
-[data-testid="stMultiSelect"] [data-baseweb="select"],
-[data-testid="stMultiSelect"] [data-baseweb="select"] div,
-[data-testid="stMultiSelect"] [data-baseweb="select"] input {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-}
-[data-testid="stMultiSelect"] [data-baseweb="select"] > div {
-    border: 1px solid #d0d7e2 !important;
-    border-radius: 8px !important;
-}
-[data-testid="stMultiSelect"] svg {
-    fill: #1a3a5c !important;
-    color: #1a3a5c !important;
-}
-/* Tags must come AFTER the generic div rule so they win */
-[data-testid="stSidebar"] [data-testid="stMultiSelect"] [data-baseweb="tag"],
-[data-testid="stSidebar"] [data-testid="stMultiSelect"] [data-baseweb="tag"] div,
-[data-testid="stSidebar"] [data-testid="stMultiSelect"] [data-baseweb="tag"] span,
-[data-testid="stMultiSelect"] [data-baseweb="tag"],
-[data-testid="stMultiSelect"] [data-baseweb="tag"] div,
-[data-testid="stMultiSelect"] [data-baseweb="tag"] span {
-    background-color: #1a3a5c !important;
-    color: #ffffff !important;
-    -webkit-text-fill-color: #ffffff !important;
-}
-[data-testid="stMultiSelect"] [data-baseweb="tag"] svg {
-    fill: #ffffff !important;
-    color: #ffffff !important;
-}
-
-/* Dropdown list that opens under the box */
-[data-baseweb="popover"], [data-baseweb="popover"] ul,
-[data-baseweb="popover"] li, [data-baseweb="popover"] li div {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-}
-[data-baseweb="popover"] li:hover, [data-baseweb="popover"] li:hover div,
-[data-baseweb="popover"] li[aria-selected="true"] {
-    background-color: #eef3f9 !important;
-}
-
-/* Buttons */
-.stButton > button {
-    background-color: #ffffff !important;
-    color: #1a3a5c !important;
-    border: 1px solid #d0d7e2 !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ============ CUSTOM COLORS ============
 DARK_BLUE = "#1a3a5c"
 LIGHT_BLUE = "#4a90d9"
-
-# ============ CUT OFF DATE (edit this each month) ============
-CUT_OFF_DATE = "31 July"
 
 # ============ SIDEBAR WITH LOGO (TOP) ============
 with st.sidebar:
@@ -710,8 +593,7 @@ def create_bar_chart(data, x_col, y_col, color=None):
         bars + text
     ).properties(
         width='container',
-        height=350,
-        background='#ffffff'
+        height=350
     ).configure_view(
         strokeWidth=0
     ).configure_axis(
@@ -740,40 +622,6 @@ def section_header_no_divider(title):
     st.markdown(f"""
     <div style="color: #000000; font-size: 24px; font-weight: bold; margin-bottom: 15px; margin-top: 10px;">
         {title}
-    </div>
-    """, unsafe_allow_html=True)
-
-
-def section_header_with_cutoff(title, cutoff_text):
-
-    st.markdown(f"""
-    <div style="
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-        margin-top: 10px;
-    ">
-        <div style="color: #000000; font-size: 24px; font-weight: bold;">
-            {title}
-        </div>
-        <div style="
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: #eef3f9;
-            color: {DARK_BLUE};
-            border: 1px solid #d0d7e2;
-            border-left: 3px solid {LIGHT_BLUE};
-            border-radius: 20px;
-            padding: 6px 14px;
-            font-size: 13px;
-            font-weight: 600;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-        ">
-            📅 {cutoff_text}
-        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -979,9 +827,8 @@ avg_cpv = (
 
 
 # ============ KPI METRICS - ROW 1 ============
-section_header_with_cutoff(
-    "Overall Performance",
-    f"Cut Off Date: {CUT_OFF_DATE}"
+section_header_no_divider(
+    "Overall Performance"
 )
 
 # Add CSS for KPI cards with elegant borders and bold headers
@@ -1140,7 +987,6 @@ if not monthly_data.empty:
 
     st.altair_chart(
         chart,
-        theme=None,
         use_container_width=True
     )
 
@@ -1471,8 +1317,7 @@ if (
             text
         ).properties(
             width=CHART_WIDTH_PX,   # fixed width so the fit math above stays accurate
-            height=300,
-        background='#ffffff'
+            height=300
         ).configure_view(
             strokeWidth=0
         ).configure_axis(
@@ -1483,10 +1328,9 @@ if (
 
 
         st.altair_chart(
-        chart,
-        theme=None,
-        use_container_width=False
-    )
+            chart,
+            use_container_width=False
+        )
 
     else:
 
@@ -1806,8 +1650,7 @@ if (
             text
         ).properties(
             width=CHART_WIDTH_PX,   # fixed width so the fit math above stays accurate
-            height=300,
-        background='#ffffff'
+            height=300
         ).configure_view(
             strokeWidth=0
         ).configure_axis(
@@ -1818,10 +1661,9 @@ if (
 
 
         st.altair_chart(
-        chart,
-        theme=None,
-        use_container_width=False
-    )
+            chart,
+            use_container_width=False
+        )
 
     else:
 
@@ -2171,8 +2013,7 @@ if (
             text
         ).properties(
             width=CHART_WIDTH_PX,   # fixed width so the fit math above stays accurate
-            height=300,
-        background='#ffffff'
+            height=300
         ).configure_view(
             strokeWidth=0
         ).configure_axis(
@@ -2183,10 +2024,9 @@ if (
 
 
         st.altair_chart(
-        chart,
-        theme=None,
-        use_container_width=False
-    )
+            chart,
+            use_container_width=False
+        )
 
     else:
 
