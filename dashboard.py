@@ -627,6 +627,38 @@ def section_header_no_divider(title):
         {title}
     </div>
     """, unsafe_allow_html=True)
+def section_header_with_cutoff(title, cutoff_text):
+
+    st.markdown(f"""
+    <div style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        margin-top: 10px;
+    ">
+        <div style="color: #000000; font-size: 24px; font-weight: bold;">
+            {title}
+        </div>
+        <div style="
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #eef3f9;
+            color: {DARK_BLUE};
+            border: 1px solid #d0d7e2;
+            border-left: 3px solid {LIGHT_BLUE};
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        ">
+            📅 {cutoff_text}
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 # ============ LINK PREVIEW: THUMBNAIL FETCH + HOVER CARD ============
