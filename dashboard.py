@@ -17,6 +17,9 @@ st.set_page_config(
 DARK_BLUE = "#1a3a5c"
 LIGHT_BLUE = "#4a90d9"
 
+# ============ CUT OFF DATE (edit this each month) ============
+CUT_OFF_DATE = "31 July"
+
 # ============ SIDEBAR WITH LOGO (TOP) ============
 with st.sidebar:
     try:
