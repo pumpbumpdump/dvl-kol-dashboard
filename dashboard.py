@@ -627,6 +627,8 @@ def section_header_no_divider(title):
         {title}
     </div>
     """, unsafe_allow_html=True)
+
+
 def section_header_with_cutoff(title, cutoff_text):
 
     st.markdown(f"""
@@ -862,8 +864,9 @@ avg_cpv = (
 
 
 # ============ KPI METRICS - ROW 1 ============
-section_header_no_divider(
-    "Overall Performance"
+section_header_with_cutoff(
+    "Overall Performance",
+    f"Cut Off Date: {CUT_OFF_DATE}"
 )
 
 # Add CSS for KPI cards with elegant borders and bold headers
